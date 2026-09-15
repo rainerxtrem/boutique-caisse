@@ -1,0 +1,113 @@
+// Prisma schema for the Boutique + Caisse app
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum StaffRole {
+  ADMIN
+  VENDEUR
+}
+
+enum OrderSource {
+  WEB
+  CAISSE
+}
+
+enum OrderStatus {
+  PENDING
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  name         String
+  role         StaffRole @default(VENDEUR)
+  createdAt    DateTime @default(now())
+
+  orders Order[]
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  birthDate DateTime
+  phone     String   @unique
+  points    Int      @default(0)
+  createdAt DateTime @default(now())
+
+  orders Order[]
+}
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String
+  slug     String    @unique
+  products Product[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  stock       Int      @default(0)
+  imageUrl    String?
+  sku         String   @unique
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  orderItems OrderItem[]
+
+  @@index([categoryId])
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  number        String      @unique
+  source        OrderSource
+  status        OrderStatus @default(PENDING)
+  subtotal      Decimal     @db.Decimal(10, 2)
+  discountTotal Decimal     @default(0) @db.Decimal(10, 2)
+  total         Decimal     @db.Decimal(10, 2)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  items OrderItem[]
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model OrderItem {
+  id              String  @id @default(cuid())
+  orderId         String
+  order           Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId       String?
+  product         Product? @relation(fields: [productId], references: [id])
+  productName     String
+  qty             Int
+  unitPrice       Decimal @db.Decimal(10, 2)
+  discountPercent Decimal @default(0) @db.Decimal(5, 2)
+  lineTotal       Decimal @db.Decimal(10, 2)
+}
