@@ -313,6 +313,29 @@ export async function completeSale(
           });
         }
 
+        const offeredLines = computedLines.filter((l) => l.discountPercent === 100);
+        if (globalDiscountPercent === 100) {
+          await logAudit(tx, {
+            actorId: session.userId,
+            actorName: session.name,
+            action: "sale.offered",
+            entityType: "Order",
+            entityId: order.id,
+            summary: `Panier entièrement offert sur le ticket ${number} (valeur ${formatPrice(pricing.subtotal)})`,
+          });
+        } else if (offeredLines.length > 0) {
+          const names = offeredLines.map((l) => l.product.name).join(", ");
+          const value = offeredLines.reduce((sum, l) => sum + l.unitPrice * l.qty, 0);
+          await logAudit(tx, {
+            actorId: session.userId,
+            actorName: session.name,
+            action: "sale.item_offered",
+            entityType: "Order",
+            entityId: order.id,
+            summary: `Article(s) offert(s) sur le ticket ${number} : ${names} (valeur ${formatPrice(value)})`,
+          });
+        }
+
         if (rewardRedemptionId) {
           await tx.rewardRedemption.update({
             where: { id: rewardRedemptionId },

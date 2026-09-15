@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
+import { useConfirm } from "@/components/confirm-provider";
 import { redeemReward } from "./actions";
 
 export function RewardRedeemButton({
@@ -18,9 +19,10 @@ export function RewardRedeemButton({
   const [code, setCode] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  const confirm = useConfirm();
 
-  function handleRedeem() {
-    if (!window.confirm(`Échanger vos points contre "${rewardName}" ?`)) return;
+  async function handleRedeem() {
+    if (!(await confirm(`Échanger vos points contre "${rewardName}" ?`, { danger: false }))) return;
     setError(null);
     startTransition(async () => {
       const result = await redeemReward(rewardId);

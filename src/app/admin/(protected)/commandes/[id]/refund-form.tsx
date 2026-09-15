@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, Input, Label, Textarea } from "@/components/ui";
 import { useToast } from "@/components/toast-provider";
+import { useConfirm } from "@/components/confirm-provider";
 import { formatPrice } from "@/lib/format";
 import { processRefund } from "../actions";
 
@@ -16,6 +17,7 @@ export function RefundForm({
 }) {
   const router = useRouter();
   const { showToast } = useToast();
+  const confirm = useConfirm();
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +28,7 @@ export function RefundForm({
     0
   );
 
-  function handleSubmit() {
+  async function handleSubmit() {
     setError(null);
     const lines = items
       .map((item) => ({ orderItemId: item.id, qty: quantities[item.id] ?? 0 }))
@@ -37,7 +39,7 @@ export function RefundForm({
       return;
     }
 
-    if (!window.confirm(`Rembourser ${formatPrice(total)} ? Cette action est irréversible.`)) {
+    if (!(await confirm(`Rembourser ${formatPrice(total)} ? Cette action est irréversible.`))) {
       return;
     }
 

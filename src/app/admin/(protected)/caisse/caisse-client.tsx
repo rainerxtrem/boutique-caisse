@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui";
+import { useConfirm } from "@/components/confirm-provider";
+import { useToast } from "@/components/toast-provider";
 import { formatPrice } from "@/lib/format";
 import { computeOrderPricing } from "@/lib/pricing";
 import {
@@ -53,7 +54,8 @@ export function CaisseClient({
   categories: string[];
   vendeurName: string;
 }) {
-  const router = useRouter();
+  const confirm = useConfirm();
+  const { showToast } = useToast();
   const [lines, setLines] = useState<TicketLine[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | "Tout">("Tout");
@@ -201,6 +203,16 @@ export function CaisseClient({
     );
   }
 
+  function toggleLineOffered(index: number) {
+    setLines((prev) => {
+      const next = [...prev];
+      const line = next[index];
+      if (!line) return prev;
+      next[index] = { ...line, discountPercent: line.discountPercent === 100 ? 0 : 100 };
+      return next;
+    });
+  }
+
   function updateSelectedQty(delta: number) {
     if (selectedIndex === null) return;
     updateQtyAt(selectedIndex, delta);
@@ -248,7 +260,7 @@ export function CaisseClient({
     });
   }
 
-  function handleValidate() {
+  async function handleValidate() {
     setSaleError(null);
     if (paymentMethod !== "CARD" && receivedAmount < pricing.total) {
       setSaleError("Le montant reçu est inférieur au total.");
@@ -256,7 +268,9 @@ export function CaisseClient({
     }
     if (
       !customer &&
-      !window.confirm("Aucun client n'est associé à cet achat, confirmez-vous la vente ?")
+      !(await confirm("Aucun client n'est associé à cet achat, confirmez-vous la vente ?", {
+        danger: false,
+      }))
     ) {
       return;
     }
@@ -281,8 +295,8 @@ export function CaisseClient({
         setSaleError(result.error);
         return;
       }
+      showToast(`Vente enregistrée · Ticket ${result.orderNumber}`);
       clearTicket();
-      router.push(`/admin/caisse/recu/${result.orderNumber}`);
     });
   }
 
@@ -486,8 +500,12 @@ export function CaisseClient({
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{line.name}</p>
-                      {line.discountPercent > 0 && (
-                        <p className="text-xs text-brand-dark">-{line.discountPercent}% remise</p>
+                      {line.discountPercent === 100 ? (
+                        <p className="text-xs font-semibold text-brand-dark">🎁 OFFERT</p>
+                      ) : (
+                        line.discountPercent > 0 && (
+                          <p className="text-xs text-brand-dark">-{line.discountPercent}% remise</p>
+                        )
                       )}
                     </div>
                     <div
@@ -511,6 +529,20 @@ export function CaisseClient({
                     <span className="w-20 shrink-0 text-right text-sm font-semibold">
                       {formatPrice(lineTotal)}
                     </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleLineOffered(i);
+                      }}
+                      title={line.discountPercent === 100 ? "Annuler l'offre" : "Offrir cet article"}
+                      className={`shrink-0 text-sm ${
+                        line.discountPercent === 100
+                          ? "text-brand-dark"
+                          : "text-muted hover:text-brand-dark"
+                      }`}
+                    >
+                      🎁
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -637,6 +669,18 @@ export function CaisseClient({
               <span>-{formatPrice(pricing.globalDiscount)}</span>
             </div>
           </div>
+
+          <button
+            onClick={() => setGlobalDiscount(globalDiscount === 100 ? 0 : 100)}
+            disabled={lines.length === 0}
+            className={`mt-2 w-full rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${
+              globalDiscount === 100
+                ? "border-brand bg-brand text-white"
+                : "border-dashed border-brand/40 bg-brand-light text-brand-dark hover:bg-brand/10"
+            }`}
+          >
+            {globalDiscount === 100 ? "🎁 Panier offert — annuler" : "🎁 Offrir tout le panier"}
+          </button>
 
           <div className="mt-3 flex items-center justify-between rounded-xl bg-brand-light px-4 py-3">
             <span className="text-sm font-medium text-brand-dark">Total</span>

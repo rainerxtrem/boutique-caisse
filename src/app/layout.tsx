@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/sw-register";
 import { ToastProvider } from "@/components/toast-provider";
+import { ConfirmProvider } from "@/components/confirm-provider";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -24,7 +25,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="fr" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ServiceWorkerRegister />
-        <ToastProvider>{children}</ToastProvider>
+        <ConfirmProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </ConfirmProvider>
       </body>
     </html>
   );

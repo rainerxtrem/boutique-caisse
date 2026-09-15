@@ -3,15 +3,17 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
+import { useConfirm } from "@/components/confirm-provider";
 import { deleteRole } from "./actions";
 
 export function DeleteRoleButton({ roleId, roleName }: { roleId: string; roleName: string }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  const confirm = useConfirm();
 
-  function handleClick() {
-    if (!window.confirm(`Supprimer le rôle "${roleName}" ?`)) return;
+  async function handleClick() {
+    if (!(await confirm(`Supprimer le rôle "${roleName}" ?`))) return;
     setError(null);
     startTransition(async () => {
       const result = await deleteRole(roleId);
