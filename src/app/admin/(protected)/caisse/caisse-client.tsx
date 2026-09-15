@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui";
 import { formatPrice } from "@/lib/format";
 import { computeOrderPricing } from "@/lib/pricing";
@@ -316,6 +317,12 @@ export function CaisseClient({
             title="Nom du poste de caisse"
             className="w-28 shrink-0 rounded-lg border border-border bg-white px-2 py-2 text-xs text-muted focus:border-brand focus:ring-2 focus:ring-brand/20"
           />
+          <Link
+            href="/admin/caisse/retours"
+            className="shrink-0 rounded-lg border border-border bg-white px-3 py-2 text-xs font-medium text-muted hover:bg-gray-50"
+          >
+            Retours
+          </Link>
         </div>
         <div className="flex flex-wrap gap-2">
           {["Tout", ...categories].map((cat) => (
