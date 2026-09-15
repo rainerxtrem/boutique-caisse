@@ -9,6 +9,7 @@ const MESSAGES: Record<string, string> = {
   updated: "Enregistré avec succès.",
   deleted: "Supprimé avec succès.",
   "customer-created": "Compte fidélité créé.",
+  "customer-created-referral": "Compte fidélité créé · parrainage enregistré, bonus à la première commande.",
   "customer-updated": "Client mis à jour.",
   "customer-deleted": "Compte fidélité supprimé.",
   "product-created": "Article créé.",

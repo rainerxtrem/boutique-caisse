@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Badge, Card } from "@/components/ui";
@@ -77,12 +78,40 @@ export default async function ClientDetailPage({
             </p>
             {customer.referredBy && (
               <p className="mt-1 text-sm text-muted">
-                Parrainé par {customer.referredBy.firstName} {customer.referredBy.lastName}
+                Parrainé par{" "}
+                <Link href={`/admin/clients/${customer.referredBy.id}`} className="text-brand hover:underline">
+                  {customer.referredBy.firstName} {customer.referredBy.lastName}
+                </Link>
+                {customer.referralBonusGranted ? (
+                  <Badge tone="brand" className="ml-2">Bonus crédité</Badge>
+                ) : (
+                  <Badge tone="warning" className="ml-2">Bonus en attente (1ère commande)</Badge>
+                )}
               </p>
             )}
-            <p className="mt-1 text-sm text-muted">
-              {customer.referrals.length} filleul(s)
-            </p>
+            {customer.referrals.length === 0 ? (
+              <p className="mt-3 text-sm text-muted">Aucun filleul pour l&apos;instant.</p>
+            ) : (
+              <div className="mt-3">
+                <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted">
+                  {customer.referrals.length} filleul(s)
+                </p>
+                <ul className="flex flex-col gap-1.5">
+                  {customer.referrals.map((r) => (
+                    <li key={r.id} className="flex items-center justify-between text-sm">
+                      <Link href={`/admin/clients/${r.id}`} className="hover:text-brand">
+                        {r.firstName} {r.lastName}
+                      </Link>
+                      {r.referralBonusGranted ? (
+                        <Badge tone="brand">Bonus crédité</Badge>
+                      ) : (
+                        <Badge tone="warning">En attente</Badge>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </Card>
         </div>
 

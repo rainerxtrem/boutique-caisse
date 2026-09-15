@@ -65,13 +65,14 @@ export async function searchCustomers(query: string): Promise<CustomerSearchResu
 }
 
 export type CreateFlashCustomerResult =
-  | { success: true; customer: CustomerSearchResult }
+  | { success: true; customer: CustomerSearchResult; referralRegistered: boolean }
   | { success: false; error: string };
 
 export async function createFlashCustomer(
   firstName: string,
   lastName: string,
-  phone: string
+  phone: string,
+  referredByCode?: string
 ): Promise<CreateFlashCustomerResult> {
   await requirePermission("caisse.use");
 
@@ -88,6 +89,21 @@ export async function createFlashCustomer(
     return { success: false, error: "Un compte existe déjà avec ce numéro." };
   }
 
+  let referredById: string | null = null;
+  const referredByCodeRaw = referredByCode?.trim();
+  if (referredByCodeRaw) {
+    const referrer = await prisma.customer.findUnique({
+      where: { referralCode: referredByCodeRaw.toUpperCase() },
+    });
+    if (!referrer) {
+      return { success: false, error: "Code de parrainage introuvable." };
+    }
+    if (referrer.phone === cleanPhone) {
+      return { success: false, error: "Un client ne peut pas être son propre parrain." };
+    }
+    referredById = referrer.id;
+  }
+
   const referralCode = await generateUniqueReferralCode();
   const customer = await prisma.customer.create({
     data: {
@@ -95,6 +111,7 @@ export async function createFlashCustomer(
       lastName: lastName.trim() || "—",
       phone: cleanPhone,
       referralCode,
+      referredById,
     },
   });
 
@@ -113,6 +130,7 @@ export async function createFlashCustomer(
       tierLabel: tier.label,
       tierDiscountPercent: tier.discountPercent,
     },
+    referralRegistered: referredById != null,
   };
 }
 

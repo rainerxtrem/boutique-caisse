@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 import { createFlashCustomer, searchCustomers, type CustomerSearchResult } from "./actions";
 
 export type CaisseCustomer = CustomerSearchResult;
@@ -20,10 +21,12 @@ export function CustomerSearch({
   const [showResults, setShowResults] = useState(false);
   const [searching, startSearchTransition] = useTransition();
 
+  const { showToast } = useToast();
   const [showFlashForm, setShowFlashForm] = useState(false);
   const [flashFirstName, setFlashFirstName] = useState("");
   const [flashLastName, setFlashLastName] = useState("");
   const [flashPhone, setFlashPhone] = useState("");
+  const [flashReferralCode, setFlashReferralCode] = useState("");
   const [flashError, setFlashError] = useState<string | null>(null);
   const [creating, startCreateTransition] = useTransition();
 
@@ -49,16 +52,25 @@ export function CustomerSearch({
   function handleCreateFlash() {
     setFlashError(null);
     startCreateTransition(async () => {
-      const result = await createFlashCustomer(flashFirstName, flashLastName, flashPhone);
+      const result = await createFlashCustomer(
+        flashFirstName,
+        flashLastName,
+        flashPhone,
+        flashReferralCode
+      );
       if (!result.success) {
         setFlashError(result.error);
         return;
       }
       onSelect(result.customer);
+      if (result.referralRegistered) {
+        showToast("Compte créé · parrainage enregistré, bonus à la première commande.");
+      }
       setShowFlashForm(false);
       setFlashFirstName("");
       setFlashLastName("");
       setFlashPhone("");
+      setFlashReferralCode("");
       setQuery("");
       setResults([]);
     });
@@ -168,6 +180,13 @@ export function CustomerSearch({
             value={flashPhone}
             onChange={(e) => setFlashPhone(e.target.value)}
             className="rounded-lg border border-border px-2 py-1.5 text-sm"
+          />
+          <input
+            type="text"
+            placeholder="Code de parrainage (optionnel)"
+            value={flashReferralCode}
+            onChange={(e) => setFlashReferralCode(e.target.value)}
+            className="rounded-lg border border-border px-2 py-1.5 text-sm uppercase"
           />
           {flashError && <p className="text-xs text-danger">{flashError}</p>}
           <Button

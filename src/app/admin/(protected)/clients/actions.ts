@@ -70,7 +70,11 @@ export async function createCustomer(
   });
 
   revalidatePath("/admin/clients");
-  redirect("/admin/clients?toast=customer-created");
+  redirect(
+    referredById
+      ? "/admin/clients?toast=customer-created-referral"
+      : "/admin/clients?toast=customer-created"
+  );
 }
 
 export async function updateCustomer(
