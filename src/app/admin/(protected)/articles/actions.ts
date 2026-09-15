@@ -111,6 +111,7 @@ export async function createProduct(
   });
 
   await syncRelatedProducts(product.id, formData.getAll("relatedProductIds") as string[]);
+  await syncProductImages(product.id, String(formData.get("imageUrls") ?? ""));
 
   revalidatePath("/admin/articles");
   redirect("/admin/articles?toast=product-created");
@@ -177,6 +178,7 @@ export async function updateProduct(
   });
 
   await syncRelatedProducts(productId, formData.getAll("relatedProductIds") as string[]);
+  await syncProductImages(productId, String(formData.get("imageUrls") ?? ""));
 
   revalidatePath("/admin/articles");
   revalidatePath(`/admin/articles/${productId}`);
@@ -190,6 +192,19 @@ async function syncRelatedProducts(productId: string, relatedIds: string[]) {
     await prisma.productRelation.createMany({
       data: ids.map((relatedProductId) => ({ productId, relatedProductId })),
       skipDuplicates: true,
+    });
+  }
+}
+
+async function syncProductImages(productId: string, imageUrlsRaw: string) {
+  const urls = imageUrlsRaw
+    .split("\n")
+    .map((u) => u.trim())
+    .filter(Boolean);
+  await prisma.productImage.deleteMany({ where: { productId } });
+  if (urls.length > 0) {
+    await prisma.productImage.createMany({
+      data: urls.map((url, order) => ({ productId, url, order })),
     });
   }
 }

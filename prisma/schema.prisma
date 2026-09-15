@@ -47,10 +47,11 @@ model User {
   role         StaffRole @default(VENDEUR)
   createdAt    DateTime  @default(now())
 
-  orders       Order[]
-  priceChanges PriceHistory[]
-  refunds      Refund[]
-  cashClosings CashClosing[]
+  orders           Order[]
+  priceChanges     PriceHistory[]
+  refunds          Refund[]
+  cashClosings     CashClosing[]
+  fulfilledRewards RewardRedemption[]
 }
 
 model Customer {
@@ -70,8 +71,9 @@ model Customer {
   lastOrderAt              DateTime?
   createdAt                DateTime   @default(now())
 
-  orders    Order[]
-  favorites Favorite[]
+  orders            Order[]
+  favorites         Favorite[]
+  rewardRedemptions RewardRedemption[]
 }
 
 model AuditLog {
@@ -147,11 +149,22 @@ model Product {
   orderItems   OrderItem[]
   priceHistory PriceHistory[]
   favorites    Favorite[]
+  images       ProductImage[]
 
   relatedFrom ProductRelation[] @relation("RelationFrom")
   relatedTo   ProductRelation[] @relation("RelationTo")
 
   @@index([categoryId])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  order     Int     @default(0)
+
+  @@index([productId])
 }
 
 model ProductRelation {
@@ -288,4 +301,48 @@ model CashClosing {
   difference   Decimal  @db.Decimal(10, 2)
   notes        String?
   createdAt    DateTime @default(now())
+}
+
+model Banner {
+  id        String   @id @default(cuid())
+  title     String
+  subtitle  String?
+  imageUrl  String?
+  ctaLabel  String?
+  ctaHref   String?
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+enum RedemptionStatus {
+  PENDING
+  FULFILLED
+}
+
+model Reward {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  pointsCost  Int
+  imageUrl    String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  redemptions RewardRedemption[]
+}
+
+model RewardRedemption {
+  id            String           @id @default(cuid())
+  rewardId      String
+  reward        Reward           @relation(fields: [rewardId], references: [id])
+  customerId    String
+  customer      Customer         @relation(fields: [customerId], references: [id])
+  pointsCost    Int
+  code          String           @unique
+  status        RedemptionStatus @default(PENDING)
+  createdAt     DateTime         @default(now())
+  fulfilledAt   DateTime?
+  fulfilledById String?
+  fulfilledBy   User?            @relation(fields: [fulfilledById], references: [id])
 }

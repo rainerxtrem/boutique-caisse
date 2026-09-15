@@ -11,7 +11,7 @@ export default async function ArticleDetailPage({
   params,
 }: PageProps<"/admin/articles/[id]">) {
   const { id } = await params;
-  const [product, categories, suppliers, relatedOptions, relations, priceHistory] =
+  const [product, categories, suppliers, relatedOptions, relations, priceHistory, images] =
     await Promise.all([
       prisma.product.findUnique({ where: { id } }),
       prisma.category.findMany({ orderBy: { name: "asc" } }),
@@ -28,6 +28,7 @@ export default async function ArticleDetailPage({
         orderBy: { changedAt: "desc" },
         take: 10,
       }),
+      prisma.productImage.findMany({ where: { productId: id }, orderBy: { order: "asc" } }),
     ]);
 
   if (!product) notFound();
@@ -80,6 +81,7 @@ export default async function ArticleDetailPage({
               ? product.flashPriceEndsAt.toISOString().slice(0, 16)
               : "",
             relatedIds: relations.map((r) => r.relatedProductId),
+            imageUrls: images.map((i) => i.url).join("\n"),
           }}
         />
 

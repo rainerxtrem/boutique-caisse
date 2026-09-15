@@ -25,6 +25,9 @@ type CartContextValue = {
   clear: () => void;
   totalItems: number;
   totalPrice: number;
+  isDrawerOpen: boolean;
+  openDrawer: () => void;
+  closeDrawer: () => void;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -33,6 +36,7 @@ const STORAGE_KEY = "boutique_cart";
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -79,6 +83,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clear = useCallback(() => setItems([]), []);
+  const openDrawer = useCallback(() => setIsDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setIsDrawerOpen(false), []);
 
   const totalItems = useMemo(
     () => items.reduce((sum, i) => sum + i.qty, 0),
@@ -90,8 +96,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ items, addItem, removeItem, setQty, clear, totalItems, totalPrice }),
-    [items, addItem, removeItem, setQty, clear, totalItems, totalPrice]
+    () => ({
+      items,
+      addItem,
+      removeItem,
+      setQty,
+      clear,
+      totalItems,
+      totalPrice,
+      isDrawerOpen,
+      openDrawer,
+      closeDrawer,
+    }),
+    [items, addItem, removeItem, setQty, clear, totalItems, totalPrice, isDrawerOpen, openDrawer, closeDrawer]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

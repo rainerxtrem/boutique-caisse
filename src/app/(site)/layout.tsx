@@ -1,4 +1,5 @@
 import { CartProvider } from "@/components/cart-context";
+import { CartDrawer } from "@/components/cart-drawer";
 import { SiteHeader } from "@/components/site-header";
 import { getCustomerSession } from "@/lib/auth-customer";
 
@@ -13,6 +14,7 @@ export default async function SiteLayout({
     <CartProvider>
       <div className="no-print contents">
         <SiteHeader isLoggedIn={!!session} />
+        <CartDrawer />
       </div>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
         {children}

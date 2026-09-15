@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { ProductCard } from "@/components/product-card";
 import { CatalogFilters } from "@/components/catalog-filters";
 import { getCurrentCustomer } from "@/lib/auth-customer";
+import { getRecommendedForCustomer } from "@/lib/recommendations";
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
   const params = await searchParams;
@@ -22,7 +23,8 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const now = new Date();
   const customer = await getCurrentCustomer();
 
-  const [categories, products, highlighted, favorites] = await Promise.all([
+  const [banner, categories, products, highlighted, favorites] = await Promise.all([
+    prisma.banner.findFirst({ where: { active: true }, orderBy: { order: "asc" } }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
     prisma.product.findMany({
       where: {
@@ -50,19 +52,37 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   ]);
 
   const favoriteIds = new Set(favorites.map((f) => f.productId));
+  const recommended = customer ? await getRecommendedForCustomer(customer.id) : [];
 
   return (
     <div className="flex flex-col gap-8">
-      <section className="rounded-2xl bg-gradient-to-br from-brand to-brand-dark px-6 py-10 text-white sm:px-10">
+      <section
+        className="rounded-2xl bg-gradient-to-br from-brand to-brand-dark px-6 py-10 text-white sm:px-10"
+        style={
+          banner?.imageUrl
+            ? {
+                backgroundImage: `linear-gradient(to bottom right, rgba(20,108,83,0.88), rgba(15,83,64,0.92)), url(${banner.imageUrl})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }
+            : undefined
+        }
+      >
         <h1 className="text-2xl font-semibold sm:text-3xl">
-          Bienvenue à La Boutique
+          {banner?.title ?? "Bienvenue à La Boutique"}
         </h1>
         <p className="mt-2 max-w-xl text-sm text-white/85 sm:text-base">
-          Découvrez notre catalogue, vérifiez les stocks et les prix en
-          temps réel, et passez commande en ligne pour un retrait en
-          boutique. Un compte fidélité créé en magasin est nécessaire pour
-          commander.
+          {banner?.subtitle ??
+            "Découvrez notre catalogue, vérifiez les stocks et les prix en temps réel, et passez commande en ligne pour un retrait en boutique. Un compte fidélité créé en magasin est nécessaire pour commander."}
         </p>
+        {banner?.ctaLabel && banner.ctaHref && (
+          <Link
+            href={banner.ctaHref}
+            className="mt-4 inline-block rounded-lg bg-white px-4 py-2 text-sm font-medium text-brand-dark hover:bg-white/90"
+          >
+            {banner.ctaLabel}
+          </Link>
+        )}
       </section>
 
       {highlighted.length > 0 && (
@@ -70,6 +90,33 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           <h2 className="mb-3 text-lg font-semibold">✨ En vedette & ventes flash</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
             {highlighted.map((p) => (
+              <ProductCard
+                key={p.id}
+                isLoggedIn={!!customer}
+                product={{
+                  id: p.id,
+                  name: p.name,
+                  slug: p.slug,
+                  price: Number(p.price),
+                  flashPrice: p.flashPrice ? Number(p.flashPrice) : null,
+                  flashPriceEndsAt: p.flashPriceEndsAt?.toISOString() ?? null,
+                  stock: p.stock,
+                  temporarilyUnavailable: p.temporarilyUnavailable,
+                  imageUrl: p.imageUrl,
+                  category: p.category ? { name: p.category.name } : null,
+                  isFavorite: favoriteIds.has(p.id),
+                }}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {recommended.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-semibold">Recommandé pour vous</h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {recommended.map((p) => (
               <ProductCard
                 key={p.id}
                 isLoggedIn={!!customer}

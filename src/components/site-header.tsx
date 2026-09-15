@@ -12,7 +12,7 @@ const NAV = [
 
 export function SiteHeader({ isLoggedIn }: { isLoggedIn: boolean }) {
   const pathname = usePathname();
-  const { totalItems } = useCart();
+  const { totalItems, openDrawer } = useCart();
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-surface/90 backdrop-blur">
@@ -49,8 +49,8 @@ export function SiteHeader({ isLoggedIn }: { isLoggedIn: boolean }) {
           >
             {isLoggedIn ? "Mon compte" : "Connexion"}
           </Link>
-          <Link
-            href="/panier"
+          <button
+            onClick={openDrawer}
             className="relative inline-flex items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-sm font-medium hover:bg-gray-50"
           >
             Panier
@@ -59,7 +59,7 @@ export function SiteHeader({ isLoggedIn }: { isLoggedIn: boolean }) {
                 {totalItems}
               </span>
             )}
-          </Link>
+          </button>
         </div>
       </div>
     </header>

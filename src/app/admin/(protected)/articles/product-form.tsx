@@ -48,6 +48,7 @@ export function ProductForm({
     flashPrice: number | null;
     flashPriceEndsAt: string;
     relatedIds: string[];
+    imageUrls: string;
   };
   submitLabel: string;
 }) {
@@ -128,12 +129,22 @@ export function ProductForm({
           </div>
         </div>
         <div>
-          <Label htmlFor="imageUrl">URL image (optionnel)</Label>
+          <Label htmlFor="imageUrl">Image principale (URL, optionnel)</Label>
           <Input
             id="imageUrl"
             name="imageUrl"
             defaultValue={defaultValues?.imageUrl}
             placeholder="https://..."
+          />
+        </div>
+        <div>
+          <Label htmlFor="imageUrls">Galerie photo (une URL par ligne, optionnel)</Label>
+          <Textarea
+            id="imageUrls"
+            name="imageUrls"
+            rows={3}
+            defaultValue={defaultValues?.imageUrls}
+            placeholder={"https://...\nhttps://..."}
           />
         </div>
 

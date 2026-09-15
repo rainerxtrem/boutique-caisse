@@ -12,6 +12,8 @@ const LINKS = [
   { href: "/admin/articles", label: "Articles", icon: "▦" },
   { href: "/admin/fournisseurs", label: "Fournisseurs", icon: "▧" },
   { href: "/admin/promotions", label: "Codes promo", icon: "◈" },
+  { href: "/admin/bannieres", label: "Bannières", icon: "▬" },
+  { href: "/admin/recompenses", label: "Récompenses", icon: "◆" },
   { href: "/admin/statistiques", label: "Statistiques", icon: "▩" },
 ];
 

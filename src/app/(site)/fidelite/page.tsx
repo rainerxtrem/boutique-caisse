@@ -12,6 +12,7 @@ import {
 } from "@/lib/loyalty";
 import { logoutCustomer } from "./actions";
 import { ReorderButton } from "./reorder-button";
+import { RewardRedeemButton } from "./reward-redeem-button";
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: "En attente",
@@ -35,7 +36,7 @@ export default async function FidelitePage() {
   const customer = await getCurrentCustomer();
   if (!customer) redirect("/connexion");
 
-  const [orders, referralCount, tiers] = await Promise.all([
+  const [orders, referralCount, tiers, rewards, myRedemptions] = await Promise.all([
     prisma.order.findMany({
       where: { customerId: customer.id },
       include: { items: true },
@@ -43,6 +44,12 @@ export default async function FidelitePage() {
     }),
     prisma.customer.count({ where: { referredById: customer.id } }),
     getLoyaltyTiers(),
+    prisma.reward.findMany({ where: { active: true }, orderBy: { pointsCost: "asc" } }),
+    prisma.rewardRedemption.findMany({
+      where: { customerId: customer.id, status: "PENDING" },
+      include: { reward: true },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
 
   const tier = resolveTier(tiers, customer.lifetimePoints);
@@ -158,6 +165,40 @@ export default async function FidelitePage() {
           gagnés (ils ne redescendent pas si vous utilisez vos points).
         </p>
       </div>
+
+      {rewards.length > 0 && (
+        <div>
+          <h2 className="mb-3 text-lg font-semibold">Boutique de récompenses</h2>
+          {myRedemptions.length > 0 && (
+            <div className="mb-3 flex flex-col gap-2">
+              {myRedemptions.map((r) => (
+                <Card key={r.id} className="flex items-center justify-between bg-brand-light p-3">
+                  <span className="text-sm text-brand-dark">
+                    {r.reward.name} — à présenter en boutique :
+                  </span>
+                  <span className="font-mono text-lg font-semibold text-brand-dark">
+                    {r.code}
+                  </span>
+                </Card>
+              ))}
+            </div>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {rewards.map((r) => (
+              <Card key={r.id} className="flex flex-col gap-2 p-5">
+                <p className="font-semibold">{r.name}</p>
+                {r.description && <p className="text-sm text-muted">{r.description}</p>}
+                <p className="text-sm font-medium text-brand-dark">{r.pointsCost} pts</p>
+                <RewardRedeemButton
+                  rewardId={r.id}
+                  rewardName={r.name}
+                  canAfford={customer.points >= r.pointsCost}
+                />
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Card className="p-6">
         <h2 className="mb-2 font-semibold">Parrainez vos proches</h2>

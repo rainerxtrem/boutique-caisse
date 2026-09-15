@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useCart } from "@/components/cart-context";
+import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui";
 
 export function AddToCartButton({
@@ -17,6 +18,7 @@ export function AddToCartButton({
   disabled?: boolean;
 }) {
   const { addItem } = useCart();
+  const { showToast } = useToast();
   const [added, setAdded] = useState(false);
 
   return (
@@ -31,6 +33,7 @@ export function AddToCartButton({
           imageUrl: product.imageUrl,
         });
         setAdded(true);
+        showToast(`${product.name} ajouté au panier.`);
         setTimeout(() => setAdded(false), 1200);
       }}
     >

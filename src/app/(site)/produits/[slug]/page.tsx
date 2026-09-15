@@ -4,9 +4,11 @@ import { prisma } from "@/lib/db";
 import { Badge } from "@/components/ui";
 import { AddToCartButton } from "@/components/add-to-cart-button";
 import { FavoriteButton } from "@/components/favorite-button";
+import { ProductGallery } from "@/components/product-gallery";
 import { formatPrice } from "@/lib/format";
 import { getEffectivePrice } from "@/lib/pricing";
 import { getCurrentCustomer } from "@/lib/auth-customer";
+import { getFrequentlyBoughtWith } from "@/lib/recommendations";
 
 export default async function ProductPage({
   params,
@@ -17,12 +19,16 @@ export default async function ProductPage({
     include: {
       category: true,
       relatedFrom: { include: { relatedProduct: { include: { category: true } } } },
+      images: { orderBy: { order: "asc" } },
     },
   });
 
   if (!product) notFound();
 
-  const customer = await getCurrentCustomer();
+  const [customer, coBought] = await Promise.all([
+    getCurrentCustomer(),
+    getFrequentlyBoughtWith(product.id),
+  ]);
   const isFavorite = customer
     ? !!(await prisma.favorite.findUnique({
         where: { customerId_productId: { customerId: customer.id, productId: product.id } },
@@ -32,9 +38,17 @@ export default async function ProductPage({
   const outOfStock = product.stock <= 0 || product.temporarilyUnavailable;
   const effectivePrice = getEffectivePrice(product);
   const onFlash = effectivePrice < Number(product.price);
-  const related = product.relatedFrom
+
+  const curated = product.relatedFrom
     .map((r) => r.relatedProduct)
     .filter((p) => p.active && !p.temporarilyUnavailable);
+  const curatedIds = new Set(curated.map((p) => p.id));
+  const related = [...curated, ...coBought.filter((p) => !curatedIds.has(p.id))].slice(0, 4);
+
+  const galleryImages = [
+    ...(product.imageUrl ? [product.imageUrl] : []),
+    ...product.images.map((i) => i.url),
+  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,18 +56,7 @@ export default async function ProductPage({
         ← Retour au catalogue
       </Link>
       <div className="grid gap-8 sm:grid-cols-2">
-        <div className="flex aspect-square items-center justify-center rounded-2xl bg-brand-light text-6xl font-semibold text-brand-dark">
-          {product.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={product.imageUrl}
-              alt={product.name}
-              className="h-full w-full rounded-2xl object-cover"
-            />
-          ) : (
-            product.name.slice(0, 1).toUpperCase()
-          )}
-        </div>
+        <ProductGallery images={galleryImages} name={product.name} />
         <div className="flex flex-col gap-4">
           {product.category && (
             <Badge tone="muted" className="w-fit">
