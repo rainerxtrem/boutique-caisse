@@ -14,7 +14,7 @@ export default function NouveauClientPage() {
           À créer uniquement pour un client présent en boutique.
         </p>
       </div>
-      <CustomerForm action={createCustomer} submitLabel="Créer le compte" />
+      <CustomerForm action={createCustomer} mode="create" submitLabel="Créer le compte" />
     </div>
   );
 }

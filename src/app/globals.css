@@ -52,3 +52,12 @@ input, select, textarea {
   background: var(--border);
   border-radius: 8px;
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}

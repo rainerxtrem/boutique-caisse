@@ -2,7 +2,11 @@
 
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth-staff";
-import { computeLineTotal, nextOrderNumber, POINTS_PER_EURO } from "@/lib/orders";
+import { withOrderNumber, creditLoyaltyPoints } from "@/lib/orders";
+import { computeOrderPricing, getEffectivePrice } from "@/lib/pricing";
+import { resolvePromoCode } from "@/lib/promo";
+import { isBirthdayPeriod, BIRTHDAY_DISCOUNT_PERCENT } from "@/lib/loyalty";
+import { applyReferralBonusIfFirstOrder } from "@/lib/referral";
 
 export async function findCustomerByPhone(phone: string) {
   const customer = await prisma.customer.findUnique({
@@ -11,20 +15,36 @@ export async function findCustomerByPhone(phone: string) {
   return customer;
 }
 
+export async function previewPromoCode(code: string, subtotal: number) {
+  const resolution = await resolvePromoCode(code, subtotal);
+  if (!resolution.ok) return { ok: false as const, error: resolution.error };
+  return { ok: true as const, promo: resolution.promo };
+}
+
 export type SaleLine = {
   productId: string;
   qty: number;
   discountPercent: number;
 };
 
+export type PaymentMethod = "CASH" | "CARD" | "MIXED";
+
 export type CompleteSaleResult =
-  | { success: true; orderNumber: string; total: number }
+  | {
+      success: true;
+      orderNumber: string;
+      total: number;
+      changeGiven: number;
+    }
   | { success: false; error: string };
 
 export async function completeSale(
   lines: SaleLine[],
   customerId: string | null,
-  globalDiscountPercent: number
+  globalDiscountPercent: number,
+  promoCodeInput: string | null,
+  payment: { method: PaymentMethod; amountPaid: number | null },
+  registerLabel: string | null
 ): Promise<CompleteSaleResult> {
   const session = await requireStaff();
 
@@ -36,68 +56,117 @@ export async function completeSale(
     where: { id: { in: lines.map((l) => l.productId) } },
   });
 
+  const customer = customerId
+    ? await prisma.customer.findUnique({ where: { id: customerId } })
+    : null;
+
   try {
     const computedLines = lines.map((line) => {
       const product = products.find((p) => p.id === line.productId);
       if (!product) throw new Error("Article introuvable.");
+      if (product.temporarilyUnavailable) {
+        throw new Error(`${product.name} est temporairement indisponible.`);
+      }
       if (product.stock < line.qty) {
         throw new Error(`Stock insuffisant pour ${product.name}.`);
       }
-      const unitPrice = Number(product.price);
       return {
         product,
         qty: line.qty,
-        unitPrice,
+        unitPrice: getEffectivePrice(product),
         discountPercent: line.discountPercent,
-        lineTotal: computeLineTotal(unitPrice, line.qty, line.discountPercent),
       };
     });
 
-    const subtotal = computedLines.reduce((sum, l) => sum + l.lineTotal, 0);
-    const globalDiscount = subtotal * (globalDiscountPercent / 100);
-    const total = Math.round((subtotal - globalDiscount) * 100) / 100;
-    const number = await nextOrderNumber("CAI");
+    const subtotalPreview = computedLines.reduce(
+      (sum, l) => sum + l.unitPrice * l.qty * (1 - l.discountPercent / 100),
+      0
+    );
 
-    await prisma.$transaction(async (tx) => {
-      await tx.order.create({
-        data: {
-          number,
-          source: "CAISSE",
-          status: "COMPLETED",
-          subtotal,
-          discountTotal: Math.round(globalDiscount * 100) / 100,
-          total,
-          customerId: customerId ?? undefined,
-          userId: session.userId,
-          items: {
-            create: computedLines.map((l) => ({
-              productId: l.product.id,
-              productName: l.product.name,
-              qty: l.qty,
-              unitPrice: l.unitPrice,
-              discountPercent: l.discountPercent,
-              lineTotal: l.lineTotal,
-            })),
+    let promo: { id: string; type: "PERCENT" | "FIXED"; value: number } | null = null;
+    if (promoCodeInput) {
+      const resolution = await resolvePromoCode(promoCodeInput, subtotalPreview);
+      if (!resolution.ok) throw new Error(resolution.error);
+      promo = resolution.promo;
+    }
+
+    const customerDiscountPercent =
+      (customer ? Number(customer.permanentDiscountPercent) : 0) +
+      (customer && isBirthdayPeriod(customer.birthDate) ? BIRTHDAY_DISCOUNT_PERCENT : 0);
+
+    const pricing = computeOrderPricing(
+      computedLines.map((l) => ({
+        unitPrice: l.unitPrice,
+        qty: l.qty,
+        discountPercent: l.discountPercent,
+      })),
+      {
+        promoCode: promo,
+        customerDiscountPercent,
+        globalDiscountPercent,
+      }
+    );
+
+    const changeGiven =
+      payment.method !== "CARD" && payment.amountPaid != null
+        ? Math.max(0, Math.round((payment.amountPaid - pricing.total) * 100) / 100)
+        : 0;
+
+    const number = await withOrderNumber("CAI", async (number) => {
+      await prisma.$transaction(async (tx) => {
+        await tx.order.create({
+          data: {
+            number,
+            source: "CAISSE",
+            status: "COMPLETED",
+            subtotal: pricing.subtotal,
+            discountTotal: pricing.discountTotal,
+            total: pricing.total,
+            promoCodeId: promo?.id,
+            promoDiscount: pricing.promoDiscount,
+            paymentMethod: payment.method,
+            amountPaid: payment.amountPaid ?? pricing.total,
+            changeGiven,
+            registerLabel: registerLabel || undefined,
+            customerId: customerId ?? undefined,
+            userId: session.userId,
+            items: {
+              create: computedLines.map((l) => ({
+                productId: l.product.id,
+                productName: l.product.name,
+                qty: l.qty,
+                unitPrice: l.unitPrice,
+                discountPercent: l.discountPercent,
+                lineTotal:
+                  Math.round(l.unitPrice * l.qty * (1 - l.discountPercent / 100) * 100) / 100,
+              })),
+            },
           },
-        },
+        });
+
+        for (const l of computedLines) {
+          await tx.product.update({
+            where: { id: l.product.id },
+            data: { stock: { decrement: l.qty } },
+          });
+        }
+
+        if (promo) {
+          await tx.promoCode.update({
+            where: { id: promo.id },
+            data: { usageCount: { increment: 1 } },
+          });
+        }
+
+        if (customerId) {
+          await creditLoyaltyPoints(tx, customerId, pricing.total);
+          await applyReferralBonusIfFirstOrder(tx, customerId);
+        }
       });
-
-      for (const l of computedLines) {
-        await tx.product.update({
-          where: { id: l.product.id },
-          data: { stock: { decrement: l.qty } },
-        });
-      }
-
-      if (customerId) {
-        await tx.customer.update({
-          where: { id: customerId },
-          data: { points: { increment: Math.round(total * POINTS_PER_EURO) } },
-        });
-      }
+      return number;
     });
 
-    return { success: true, orderNumber: number, total };
+    return { success: true, orderNumber: number, total: pricing.total, changeGiven };
   } catch (err) {
     return {
       success: false,

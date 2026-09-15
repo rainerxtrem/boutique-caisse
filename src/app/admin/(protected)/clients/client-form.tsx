@@ -8,6 +8,7 @@ const initialState: CustomerFormState = {};
 
 export function CustomerForm({
   action,
+  mode,
   defaultValues,
   submitLabel,
 }: {
@@ -15,11 +16,13 @@ export function CustomerForm({
     prevState: CustomerFormState,
     formData: FormData
   ) => Promise<CustomerFormState>;
+  mode: "create" | "edit";
   defaultValues?: {
     firstName: string;
     lastName: string;
     birthDate: string;
     phone: string;
+    permanentDiscountPercent?: number;
   };
   submitLabel: string;
 }) {
@@ -69,6 +72,36 @@ export function CustomerForm({
             required
           />
         </div>
+        {mode === "create" && (
+          <div>
+            <Label htmlFor="referredByCode">Code de parrainage (optionnel)</Label>
+            <Input
+              id="referredByCode"
+              name="referredByCode"
+              placeholder="Code du client parrain"
+            />
+          </div>
+        )}
+        {mode === "edit" && (
+          <div>
+            <Label htmlFor="permanentDiscountPercent">
+              Remise permanente (%)
+            </Label>
+            <Input
+              id="permanentDiscountPercent"
+              name="permanentDiscountPercent"
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              defaultValue={defaultValues?.permanentDiscountPercent ?? 0}
+            />
+            <p className="mt-1 text-xs text-muted">
+              Appliquée automatiquement sur le panier et en caisse pour ce
+              client.
+            </p>
+          </div>
+        )}
         <FieldError>{state.error}</FieldError>
         <Button type="submit" disabled={pending}>
           {pending ? "Enregistrement..." : submitLabel}

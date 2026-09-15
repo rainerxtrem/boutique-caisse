@@ -17,6 +17,8 @@ const initialState: ProductFormState = {};
 export function ProductForm({
   action,
   categories,
+  suppliers,
+  relatedOptions,
   defaultValues,
   submitLabel,
 }: {
@@ -25,6 +27,8 @@ export function ProductForm({
     formData: FormData
   ) => Promise<ProductFormState>;
   categories: { id: string; name: string }[];
+  suppliers: { id: string; name: string }[];
+  relatedOptions: { id: string; name: string }[];
   defaultValues?: {
     name: string;
     description: string;
@@ -32,8 +36,17 @@ export function ProductForm({
     stock: number;
     sku: string;
     categoryId: string;
+    supplierId: string;
     imageUrl: string;
     active: boolean;
+    ingredients: string;
+    allergens: string;
+    prepTimeMinutes: number | null;
+    temporarilyUnavailable: boolean;
+    featured: boolean;
+    flashPrice: number | null;
+    flashPriceEndsAt: string;
+    relatedIds: string[];
   };
   submitLabel: string;
 }) {
@@ -110,14 +123,124 @@ export function ProductForm({
             placeholder="https://..."
           />
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            name="active"
-            defaultChecked={defaultValues?.active ?? true}
-          />
-          Article actif (visible sur le site)
-        </label>
+
+        <div className="border-t border-border pt-4">
+          <p className="mb-3 text-sm font-semibold">Fiche produit</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="allergens">Allergènes</Label>
+              <Input
+                id="allergens"
+                name="allergens"
+                defaultValue={defaultValues?.allergens}
+                placeholder="Gluten, lait..."
+              />
+            </div>
+            <div>
+              <Label htmlFor="prepTimeMinutes">Temps de préparation (min)</Label>
+              <Input
+                id="prepTimeMinutes"
+                name="prepTimeMinutes"
+                type="number"
+                min="0"
+                defaultValue={defaultValues?.prepTimeMinutes ?? undefined}
+              />
+            </div>
+          </div>
+          <div className="mt-4">
+            <Label htmlFor="ingredients">Ingrédients</Label>
+            <Textarea
+              id="ingredients"
+              name="ingredients"
+              rows={2}
+              defaultValue={defaultValues?.ingredients}
+            />
+          </div>
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <p className="mb-3 text-sm font-semibold">Fournisseur & produits complémentaires</p>
+          <div>
+            <Label htmlFor="supplierId">Fournisseur</Label>
+            <Select id="supplierId" name="supplierId" defaultValue={defaultValues?.supplierId}>
+              <option value="">Aucun</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="mt-4">
+            <Label htmlFor="relatedProductIds">
+              Souvent acheté avec (Ctrl/Cmd + clic pour sélection multiple)
+            </Label>
+            <select
+              id="relatedProductIds"
+              name="relatedProductIds"
+              multiple
+              defaultValue={defaultValues?.relatedIds}
+              className="h-32 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-brand focus:ring-2 focus:ring-brand/20"
+            >
+              {relatedOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <p className="mb-3 text-sm font-semibold">Disponibilité & mise en avant</p>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="active"
+              defaultChecked={defaultValues?.active ?? true}
+            />
+            Article actif (visible sur le site)
+          </label>
+          <label className="mt-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="temporarilyUnavailable"
+              defaultChecked={defaultValues?.temporarilyUnavailable ?? false}
+            />
+            Rupture temporaire (masqué à la vente sans désactiver la fiche)
+          </label>
+          <label className="mt-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="featured"
+              defaultChecked={defaultValues?.featured ?? false}
+            />
+            Mettre en avant sur la page d&apos;accueil
+          </label>
+          <div className="mt-3 grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="flashPrice">Prix vente flash (€, optionnel)</Label>
+              <Input
+                id="flashPrice"
+                name="flashPrice"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={defaultValues?.flashPrice ?? undefined}
+              />
+            </div>
+            <div>
+              <Label htmlFor="flashPriceEndsAt">Fin de la vente flash</Label>
+              <Input
+                id="flashPriceEndsAt"
+                name="flashPriceEndsAt"
+                type="datetime-local"
+                defaultValue={defaultValues?.flashPriceEndsAt}
+              />
+            </div>
+          </div>
+        </div>
+
         <FieldError>{state.error}</FieldError>
         <Button type="submit" disabled={pending}>
           {pending ? "Enregistrement..." : submitLabel}

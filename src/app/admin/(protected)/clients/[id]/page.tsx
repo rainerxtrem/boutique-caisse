@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Badge, Button, Card } from "@/components/ui";
-import { formatDate, formatPrice } from "@/lib/format";
+import { formatDate, formatDateOnly, formatPrice } from "@/lib/format";
+import { getLoyaltyTier } from "@/lib/loyalty";
 import { deleteCustomer, updateCustomer } from "../actions";
 import { CustomerForm } from "../client-form";
 
@@ -12,13 +13,18 @@ export default async function ClientDetailPage({
   const { id } = await params;
   const customer = await prisma.customer.findUnique({
     where: { id },
-    include: { orders: { orderBy: { createdAt: "desc" } } },
+    include: {
+      orders: { orderBy: { createdAt: "desc" } },
+      referredBy: true,
+      referrals: true,
+    },
   });
 
   if (!customer) notFound();
 
   const boundUpdate = updateCustomer.bind(null, customer.id);
   const boundDelete = deleteCustomer.bind(null, customer.id);
+  const tier = getLoyaltyTier(customer.lifetimePoints);
 
   return (
     <div className="flex flex-col gap-6">
@@ -26,25 +32,47 @@ export default async function ClientDetailPage({
         <Link href="/admin/clients" className="text-sm text-muted hover:text-foreground">
           ← Retour aux clients
         </Link>
-        <div className="mt-1 flex items-center justify-between">
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-semibold">
             {customer.firstName} {customer.lastName}
           </h1>
-          <Badge tone="brand">{customer.points} pts</Badge>
+          <div className="flex items-center gap-2">
+            <Badge tone="muted">Palier {tier.current.label}</Badge>
+            <Badge tone="brand">{customer.points} pts</Badge>
+          </div>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <CustomerForm
-          action={boundUpdate}
-          submitLabel="Enregistrer"
-          defaultValues={{
-            firstName: customer.firstName,
-            lastName: customer.lastName,
-            birthDate: customer.birthDate.toISOString().slice(0, 10),
-            phone: customer.phone,
-          }}
-        />
+        <div className="flex flex-col gap-6">
+          <CustomerForm
+            action={boundUpdate}
+            mode="edit"
+            submitLabel="Enregistrer"
+            defaultValues={{
+              firstName: customer.firstName,
+              lastName: customer.lastName,
+              birthDate: customer.birthDate.toISOString().slice(0, 10),
+              phone: customer.phone,
+              permanentDiscountPercent: Number(customer.permanentDiscountPercent),
+            }}
+          />
+
+          <Card className="p-6">
+            <h2 className="mb-3 font-semibold">Parrainage</h2>
+            <p className="text-sm text-muted">
+              Code personnel : <span className="font-mono font-medium text-foreground">{customer.referralCode}</span>
+            </p>
+            {customer.referredBy && (
+              <p className="mt-1 text-sm text-muted">
+                Parrainé par {customer.referredBy.firstName} {customer.referredBy.lastName}
+              </p>
+            )}
+            <p className="mt-1 text-sm text-muted">
+              {customer.referrals.length} filleul(s)
+            </p>
+          </Card>
+        </div>
 
         <Card className="p-6">
           <h2 className="mb-3 font-semibold">Historique des commandes</h2>
@@ -70,6 +98,11 @@ export default async function ClientDetailPage({
                 </li>
               ))}
             </ul>
+          )}
+          {customer.lastOrderAt && (
+            <p className="mt-3 text-xs text-muted">
+              Dernière commande le {formatDateOnly(customer.lastOrderAt)}
+            </p>
           )}
         </Card>
       </div>

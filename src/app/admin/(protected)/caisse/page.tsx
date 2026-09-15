@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth-staff";
+import { getEffectivePrice } from "@/lib/pricing";
 import { CaisseClient } from "./caisse-client";
 
 export default async function CaissePage() {
@@ -7,7 +8,10 @@ export default async function CaissePage() {
 
   const products = await prisma.product.findMany({
     where: { active: true },
-    include: { category: true },
+    include: {
+      category: true,
+      relatedFrom: { include: { relatedProduct: true } },
+    },
     orderBy: { name: "asc" },
   });
 
@@ -22,9 +26,17 @@ export default async function CaissePage() {
       products={products.map((p) => ({
         id: p.id,
         name: p.name,
-        price: Number(p.price),
+        price: getEffectivePrice(p),
         stock: p.stock,
         categoryName: p.category?.name ?? null,
+        temporarilyUnavailable: p.temporarilyUnavailable,
+        relatedProducts: p.relatedFrom
+          .filter((r) => r.relatedProduct.active && !r.relatedProduct.temporarilyUnavailable)
+          .map((r) => ({
+            id: r.relatedProduct.id,
+            name: r.relatedProduct.name,
+            price: Number(r.relatedProduct.price),
+          })),
       }))}
     />
   );

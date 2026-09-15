@@ -24,35 +24,73 @@ enum OrderStatus {
   READY
   COMPLETED
   CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  MIXED
+}
+
+enum PromoType {
+  PERCENT
+  FIXED
 }
 
 model User {
-  id           String   @id @default(cuid())
-  username     String   @unique
+  id           String    @id @default(cuid())
+  username     String    @unique
   passwordHash String
   name         String
   role         StaffRole @default(VENDEUR)
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
-  orders Order[]
+  orders       Order[]
+  priceChanges PriceHistory[]
+  refunds      Refund[]
+  cashClosings CashClosing[]
 }
 
 model Customer {
-  id        String   @id @default(cuid())
-  firstName String
-  lastName  String
-  birthDate DateTime
-  phone     String   @unique
-  points    Int      @default(0)
-  createdAt DateTime @default(now())
+  id                       String     @id @default(cuid())
+  firstName                String
+  lastName                 String
+  birthDate                DateTime
+  phone                    String     @unique
+  points                   Int        @default(0)
+  lifetimePoints           Int        @default(0)
+  permanentDiscountPercent Decimal    @default(0) @db.Decimal(5, 2)
+  referralCode             String     @unique
+  referredById             String?
+  referredBy               Customer?  @relation("Referrals", fields: [referredById], references: [id])
+  referrals                Customer[] @relation("Referrals")
+  referralBonusGranted     Boolean    @default(false)
+  lastOrderAt              DateTime?
+  createdAt                DateTime   @default(now())
 
-  orders Order[]
+  orders    Order[]
+  favorites Favorite[]
 }
 
 model Category {
   id       String    @id @default(cuid())
   name     String
   slug     String    @unique
+  products Product[]
+}
+
+model Supplier {
+  id          String   @id @default(cuid())
+  name        String
+  contactName String?
+  email       String?
+  phone       String?
+  address     String?
+  notes       String?
+  createdAt   DateTime @default(now())
+
   products Product[]
 }
 
@@ -68,12 +106,76 @@ model Product {
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
 
+  ingredients            String?
+  allergens              String?
+  prepTimeMinutes        Int?
+  temporarilyUnavailable Boolean   @default(false)
+  featured               Boolean   @default(false)
+  flashPrice             Decimal?  @db.Decimal(10, 2)
+  flashPriceEndsAt       DateTime?
+
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id])
 
-  orderItems OrderItem[]
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id])
+
+  orderItems   OrderItem[]
+  priceHistory PriceHistory[]
+  favorites    Favorite[]
+
+  relatedFrom ProductRelation[] @relation("RelationFrom")
+  relatedTo   ProductRelation[] @relation("RelationTo")
 
   @@index([categoryId])
+}
+
+model ProductRelation {
+  id               String  @id @default(cuid())
+  productId        String
+  product          Product @relation("RelationFrom", fields: [productId], references: [id], onDelete: Cascade)
+  relatedProductId String
+  relatedProduct   Product @relation("RelationTo", fields: [relatedProductId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, relatedProductId])
+}
+
+model PriceHistory {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  oldPrice    Decimal  @db.Decimal(10, 2)
+  newPrice    Decimal  @db.Decimal(10, 2)
+  changedById String?
+  changedBy   User?    @relation(fields: [changedById], references: [id])
+  changedAt   DateTime @default(now())
+}
+
+model Favorite {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([customerId, productId])
+}
+
+model PromoCode {
+  id             String    @id @default(cuid())
+  code           String    @unique
+  type           PromoType
+  value          Decimal   @db.Decimal(10, 2)
+  active         Boolean   @default(true)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  usageLimit     Int?
+  usageCount     Int       @default(0)
+  minOrderAmount Decimal?  @db.Decimal(10, 2)
+  createdAt      DateTime  @default(now())
+
+  orders Order[]
 }
 
 model Order {
@@ -87,27 +189,79 @@ model Order {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
+  paymentMethod PaymentMethod?
+  amountPaid    Decimal?       @db.Decimal(10, 2)
+  changeGiven   Decimal?       @db.Decimal(10, 2)
+  registerLabel String?
+
+  promoCodeId   String?
+  promoCode     PromoCode? @relation(fields: [promoCodeId], references: [id])
+  promoDiscount Decimal    @default(0) @db.Decimal(10, 2)
+
+  pickupSlot DateTime?
+
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id])
 
   userId String?
   user   User?   @relation(fields: [userId], references: [id])
 
-  items OrderItem[]
+  items   OrderItem[]
+  refunds Refund[]
 
   @@index([customerId])
   @@index([status])
 }
 
 model OrderItem {
-  id              String  @id @default(cuid())
+  id              String   @id @default(cuid())
   orderId         String
-  order           Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId       String?
   product         Product? @relation(fields: [productId], references: [id])
   productName     String
   qty             Int
-  unitPrice       Decimal @db.Decimal(10, 2)
-  discountPercent Decimal @default(0) @db.Decimal(5, 2)
-  lineTotal       Decimal @db.Decimal(10, 2)
+  unitPrice       Decimal  @db.Decimal(10, 2)
+  discountPercent Decimal  @default(0) @db.Decimal(5, 2)
+  lineTotal       Decimal  @db.Decimal(10, 2)
+
+  refundItems RefundItem[]
+}
+
+model Refund {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount      Decimal  @db.Decimal(10, 2)
+  reason      String?
+  staffUserId String?
+  staffUser   User?    @relation(fields: [staffUserId], references: [id])
+  createdAt   DateTime @default(now())
+
+  items RefundItem[]
+}
+
+model RefundItem {
+  id          String    @id @default(cuid())
+  refundId    String
+  refund      Refund    @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  orderItemId String
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
+  qty         Int
+  amount      Decimal   @db.Decimal(10, 2)
+}
+
+model CashClosing {
+  id           String   @id @default(cuid())
+  periodStart  DateTime
+  periodEnd    DateTime
+  closedById   String?
+  closedBy     User?    @relation(fields: [closedById], references: [id])
+  expectedCash Decimal  @db.Decimal(10, 2)
+  expectedCard Decimal  @db.Decimal(10, 2)
+  declaredCash Decimal  @db.Decimal(10, 2)
+  declaredCard Decimal  @db.Decimal(10, 2)
+  difference   Decimal  @db.Decimal(10, 2)
+  notes        String?
+  createdAt    DateTime @default(now())
 }

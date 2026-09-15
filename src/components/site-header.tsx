@@ -6,6 +6,7 @@ import { useCart } from "@/components/cart-context";
 
 const NAV = [
   { href: "/", label: "Catalogue" },
+  { href: "/favoris", label: "Favoris" },
   { href: "/fidelite", label: "Espace fidélité" },
 ];
 

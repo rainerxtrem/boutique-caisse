@@ -9,6 +9,8 @@ const STATUS_LABEL: Record<string, string> = {
   READY: "Prête",
   COMPLETED: "Terminée",
   CANCELLED: "Annulée",
+  REFUNDED: "Remboursée",
+  PARTIALLY_REFUNDED: "Partiellement remboursée",
 };
 
 const STATUS_TONE: Record<string, "default" | "brand" | "warning" | "danger" | "muted"> = {
@@ -16,6 +18,8 @@ const STATUS_TONE: Record<string, "default" | "brand" | "warning" | "danger" | "
   READY: "brand",
   COMPLETED: "muted",
   CANCELLED: "danger",
+  REFUNDED: "danger",
+  PARTIALLY_REFUNDED: "warning",
 };
 
 const FILTERS = ["Tout", "PENDING", "READY", "COMPLETED", "CANCELLED"] as const;
@@ -70,7 +74,9 @@ export default async function CommandesPage({
             <Card key={order.id} className="p-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="font-semibold">{order.number}</p>
+                  <Link href={`/admin/commandes/${order.id}`} className="font-semibold hover:text-brand">
+                    {order.number}
+                  </Link>
                   <p className="text-sm text-muted">
                     {order.customer
                       ? `${order.customer.firstName} ${order.customer.lastName} · ${order.customer.phone}`
@@ -113,6 +119,16 @@ export default async function CommandesPage({
                       Annuler
                     </Button>
                   </form>
+                </div>
+              )}
+              {(order.status === "COMPLETED" || order.status === "PARTIALLY_REFUNDED") && (
+                <div className="mt-3 border-t border-border pt-3">
+                  <Link
+                    href={`/admin/commandes/${order.id}`}
+                    className="text-xs font-medium text-brand hover:underline"
+                  >
+                    Voir le détail / rembourser
+                  </Link>
                 </div>
               )}
             </Card>

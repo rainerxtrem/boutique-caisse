@@ -6,9 +6,13 @@ import { usePathname } from "next/navigation";
 const LINKS = [
   { href: "/admin", label: "Tableau de bord", icon: "◧" },
   { href: "/admin/caisse", label: "Caisse", icon: "▤" },
+  { href: "/admin/caisse/cloture", label: "Clôture de caisse", icon: "▣" },
   { href: "/admin/commandes", label: "Commandes web", icon: "▥" },
   { href: "/admin/clients", label: "Clients fidélité", icon: "◐" },
   { href: "/admin/articles", label: "Articles", icon: "▦" },
+  { href: "/admin/fournisseurs", label: "Fournisseurs", icon: "▧" },
+  { href: "/admin/promotions", label: "Codes promo", icon: "◈" },
+  { href: "/admin/statistiques", label: "Statistiques", icon: "▩" },
 ];
 
 const ADMIN_ONLY_LINKS = [

@@ -6,6 +6,11 @@ import { PrismaPg } from "@prisma/adapter-pg";
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
+function randomReferralCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+}
+
 const CATEGORIES = [
   { name: "Boissons", slug: "boissons" },
   { name: "Fromages", slug: "fromages" },
@@ -149,6 +154,8 @@ async function main() {
       birthDate: new Date("1990-01-01"),
       phone: "0600000000",
       points: 12,
+      lifetimePoints: 12,
+      referralCode: randomReferralCode(),
     },
   });
 

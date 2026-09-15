@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth-staff";
+import { generateUniqueReferralCode } from "@/lib/referral";
 
 const customerSchema = z.object({
   firstName: z.string().min(1, "Prénom requis"),
@@ -39,12 +40,28 @@ export async function createCustomer(
     return { error: "Un compte fidélité existe déjà avec ce numéro." };
   }
 
+  let referredById: string | null = null;
+  const referredByCodeRaw = String(formData.get("referredByCode") ?? "").trim();
+  if (referredByCodeRaw) {
+    const referrer = await prisma.customer.findUnique({
+      where: { referralCode: referredByCodeRaw.toUpperCase() },
+    });
+    if (!referrer) {
+      return { error: "Code de parrainage introuvable." };
+    }
+    referredById = referrer.id;
+  }
+
+  const referralCode = await generateUniqueReferralCode();
+
   await prisma.customer.create({
     data: {
       firstName: parsed.data.firstName,
       lastName: parsed.data.lastName,
       birthDate: new Date(parsed.data.birthDate),
       phone: parsed.data.phone,
+      referralCode,
+      referredById,
     },
   });
 
@@ -70,6 +87,12 @@ export async function updateCustomer(
     return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide." };
   }
 
+  const discountRaw = formData.get("permanentDiscountPercent");
+  const permanentDiscountPercent = discountRaw ? Number(discountRaw) : 0;
+  if (Number.isNaN(permanentDiscountPercent) || permanentDiscountPercent < 0 || permanentDiscountPercent > 100) {
+    return { error: "Remise permanente invalide (0 à 100)." };
+  }
+
   const existing = await prisma.customer.findUnique({
     where: { phone: parsed.data.phone },
   });
@@ -84,6 +107,7 @@ export async function updateCustomer(
       lastName: parsed.data.lastName,
       birthDate: new Date(parsed.data.birthDate),
       phone: parsed.data.phone,
+      permanentDiscountPercent,
     },
   });
 

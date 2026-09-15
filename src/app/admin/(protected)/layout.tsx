@@ -12,9 +12,11 @@ export default async function AdminProtectedLayout({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AdminSidebar staffName={session.name} isAdmin={session.role === "ADMIN"} />
+      <div className="no-print contents">
+        <AdminSidebar staffName={session.name} isAdmin={session.role === "ADMIN"} />
+      </div>
       <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border bg-surface px-6 py-3">
+        <header className="no-print flex items-center justify-between border-b border-border bg-surface px-6 py-3">
           <p className="text-sm text-muted">
             Connecté en tant que{" "}
             <span className="font-medium text-foreground">
