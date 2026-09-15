@@ -1,21 +1,32 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { Badge, Button, Card, Input } from "@/components/ui";
+import { LiveSearchInput } from "@/components/live-search-input";
+import { Pagination } from "@/components/pagination";
+import { EmptyState } from "@/components/empty-state";
 import { formatPrice } from "@/lib/format";
+import { parsePage, paginationSkipTake, totalPages } from "@/lib/pagination";
 import { createCategory } from "./actions";
+import { StockQuickEdit } from "./stock-quick-edit";
 
 export default async function ArticlesPage({
   searchParams,
 }: PageProps<"/admin/articles">) {
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q : "";
+  const page = parsePage(params.page);
 
-  const [products, categories] = await Promise.all([
+  const where = q ? { name: { contains: q, mode: "insensitive" as const } } : undefined;
+
+  const [products, count, categories] = await Promise.all([
     prisma.product.findMany({
-      where: q ? { name: { contains: q, mode: "insensitive" } } : undefined,
+      where,
       include: { category: true },
       orderBy: { name: "asc" },
+      ...paginationSkipTake(page),
     }),
+    prisma.product.count({ where }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);
 
@@ -33,66 +44,70 @@ export default async function ArticlesPage({
 
       <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
         <div className="flex flex-col gap-4">
-          <form className="max-w-sm">
-            <Input
-              type="search"
-              name="q"
-              defaultValue={q}
-              placeholder="Rechercher un article..."
-            />
-          </form>
+          <Suspense fallback={<Input placeholder="Rechercher un article..." disabled />}>
+            <div className="max-w-sm">
+              <LiveSearchInput placeholder="Rechercher un article..." />
+            </div>
+          </Suspense>
 
-          <Card className="overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs uppercase text-muted">
-                <tr>
-                  <th className="px-4 py-3 text-left">Article</th>
-                  <th className="px-4 py-3 text-left">Catégorie</th>
-                  <th className="px-4 py-3 text-right">Prix</th>
-                  <th className="px-4 py-3 text-right">Stock</th>
-                  <th className="px-4 py-3 text-center">Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((p) => (
-                  <tr key={p.id} className="border-t border-border hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/admin/articles/${p.id}`}
-                        className="font-medium hover:text-brand"
-                      >
-                        {p.name}
-                      </Link>
-                      <p className="text-xs text-muted">{p.sku}</p>
-                    </td>
-                    <td className="px-4 py-3 text-muted">
-                      {p.category?.name ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {formatPrice(Number(p.price))}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Badge tone={p.stock === 0 ? "danger" : p.stock <= 5 ? "warning" : "brand"}>
-                        {p.stock}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <Badge tone={p.active ? "brand" : "muted"}>
-                        {p.active ? "Actif" : "Désactivé"}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-                {products.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-muted">
-                      Aucun article trouvé.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </Card>
+          {products.length === 0 ? (
+            <EmptyState
+              icon="search"
+              title="Aucun article trouvé"
+              description={q ? `Aucun résultat pour "${q}".` : "Ajoutez votre premier article."}
+            />
+          ) : (
+            <>
+              <Card className="overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-xs uppercase text-muted">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Article</th>
+                      <th className="px-4 py-3 text-left">Catégorie</th>
+                      <th className="px-4 py-3 text-right">Prix</th>
+                      <th className="px-4 py-3 text-right">Stock</th>
+                      <th className="px-4 py-3 text-center">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map((p) => (
+                      <tr key={p.id} className="border-t border-border hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <Link
+                            href={`/admin/articles/${p.id}`}
+                            className="font-medium hover:text-brand"
+                          >
+                            {p.name}
+                          </Link>
+                          <p className="text-xs text-muted">{p.sku}</p>
+                        </td>
+                        <td className="px-4 py-3 text-muted">
+                          {p.category?.name ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {formatPrice(Number(p.price))}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <StockQuickEdit productId={p.id} initialStock={p.stock} />
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <Badge tone={p.active ? "brand" : "muted"}>
+                            {p.active ? "Actif" : "Désactivé"}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+              <Pagination
+                page={page}
+                totalPages={totalPages(count)}
+                searchParams={params}
+                basePath="/admin/articles"
+              />
+            </>
+          )}
         </div>
 
         <Card className="h-fit p-4">

@@ -2,6 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { formatDate, formatPrice } from "@/lib/format";
+import { computeVatBreakdown } from "@/lib/tax";
+import { getBaseUrl } from "@/lib/base-url";
+import { QrCode } from "@/components/qr-code";
 import { PrintButton } from "./print-button";
 
 const PAYMENT_LABEL: Record<string, string> = {
@@ -16,10 +19,22 @@ export default async function ReceiptPage({
   const { number } = await params;
   const order = await prisma.order.findUnique({
     where: { number },
-    include: { items: true, customer: true, user: true },
+    include: {
+      items: { include: { product: { select: { vatRate: true } } } },
+      customer: true,
+      user: true,
+    },
   });
 
   if (!order || order.source !== "CAISSE") notFound();
+
+  const vat = computeVatBreakdown(
+    order.items.map((item) => ({
+      amountTTC: Number(item.lineTotal),
+      vatRate: item.product ? Number(item.product.vatRate) : 20,
+    }))
+  );
+  const baseUrl = await getBaseUrl();
 
   return (
     <div className="mx-auto flex max-w-sm flex-col gap-4">
@@ -90,6 +105,22 @@ export default async function ReceiptPage({
           </div>
         )}
         <div className="my-3 border-t border-dashed border-border" />
+        <div className="text-xs text-muted">
+          <div className="flex justify-between">
+            <span>Total HT</span>
+            <span>{formatPrice(vat.totalHT)}</span>
+          </div>
+          {vat.rows.map((row) => (
+            <div key={row.vatRate} className="flex justify-between">
+              <span>dont TVA {row.vatRate}%</span>
+              <span>{formatPrice(row.vatAmount)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="my-3 border-t border-dashed border-border" />
+        <div className="flex justify-center py-2">
+          <QrCode value={`${baseUrl}/commande/${order.number}`} size={100} />
+        </div>
         <p className="text-center text-xs text-muted">Merci de votre visite !</p>
       </div>
     </div>

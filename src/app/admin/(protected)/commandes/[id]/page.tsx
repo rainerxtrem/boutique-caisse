@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Badge, Card } from "@/components/ui";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { formatDate, formatPrice } from "@/lib/format";
 import { RefundForm } from "./refund-form";
 
@@ -44,12 +44,15 @@ export default async function OrderDetailPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link
-          href={order.source === "WEB" ? "/admin/commandes" : "/admin/caisse"}
-          className="text-sm text-muted hover:text-foreground"
-        >
-          ← Retour
-        </Link>
+        <Breadcrumb
+          items={[
+            {
+              label: order.source === "WEB" ? "Commandes web" : "Caisse",
+              href: order.source === "WEB" ? "/admin/commandes" : "/admin/caisse",
+            },
+            { label: order.number },
+          ]}
+        />
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-semibold">{order.number}</h1>
           <Badge tone="muted">{STATUS_LABEL[order.status]}</Badge>

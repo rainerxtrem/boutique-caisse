@@ -4,12 +4,13 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth-staff";
 import { POINTS_PER_EURO } from "@/lib/orders";
+import { logAudit } from "@/lib/audit";
 
 export async function updateOrderStatus(
   orderId: string,
   status: "PENDING" | "READY" | "COMPLETED" | "CANCELLED"
 ) {
-  await requireStaff();
+  const session = await requireStaff();
 
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) throw new Error("Commande introuvable.");
@@ -41,6 +42,14 @@ export async function updateOrderStatus(
         });
       }
       await tx.order.update({ where: { id: orderId }, data: { status } });
+      await logAudit(tx, {
+        actorId: session.userId,
+        actorName: session.name,
+        action: "order.cancelled",
+        entityType: "Order",
+        entityId: orderId,
+        summary: `Commande ${order.number} annulée`,
+      });
     });
   } else {
     await prisma.order.update({ where: { id: orderId }, data: { status } });
@@ -124,6 +133,15 @@ export async function processRefund(
       data: {
         status: totalRefundedQty >= totalOrderedQty ? "REFUNDED" : "PARTIALLY_REFUNDED",
       },
+    });
+
+    await logAudit(tx, {
+      actorId: session.userId,
+      actorName: session.name,
+      action: "order.refunded",
+      entityType: "Order",
+      entityId: orderId,
+      summary: `Remboursement de ${refundAmount.toFixed(2)}€ sur la commande ${order.number}`,
     });
   });
 

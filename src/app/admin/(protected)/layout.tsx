@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import { requireStaff } from "@/lib/auth-staff";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { Button } from "@/components/ui";
+import { ToastFromQuery } from "@/components/toast-from-query";
 import { logoutStaff } from "./logout-actions";
 
 export default async function AdminProtectedLayout({
@@ -30,7 +32,12 @@ export default async function AdminProtectedLayout({
             </Button>
           </form>
         </header>
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-6">
+          <Suspense fallback={null}>
+            <ToastFromQuery />
+          </Suspense>
+          {children}
+        </main>
       </div>
     </div>
   );

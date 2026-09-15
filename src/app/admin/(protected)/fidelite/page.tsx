@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { Button, Card, Input, Textarea } from "@/components/ui";
+import { ConfirmSubmitButton } from "@/components/confirm-button";
 import { deleteTier, updateTier } from "./actions";
 import { TierCreateForm } from "./tier-create-form";
 
@@ -47,13 +48,14 @@ export default async function FidelitePaliersPage() {
                   <Button type="submit" variant="secondary" className="!py-1.5 text-xs">
                     Enregistrer
                   </Button>
-                  <Button
+                  <ConfirmSubmitButton
                     formAction={deleteTier.bind(null, tier.id)}
                     variant="danger"
                     className="!py-1.5 text-xs"
+                    confirmMessage={`Supprimer le palier "${tier.label}" ?`}
                   >
                     Supprimer
-                  </Button>
+                  </ConfirmSubmitButton>
                 </div>
               </form>
             </Card>

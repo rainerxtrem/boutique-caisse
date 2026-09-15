@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth-staff";
+import { logAudit } from "@/lib/audit";
 
 const supplierSchema = z.object({
   name: z.string().min(1, "Nom requis"),
@@ -50,7 +51,7 @@ export async function createSupplier(
   });
 
   revalidatePath("/admin/fournisseurs");
-  redirect("/admin/fournisseurs");
+  redirect("/admin/fournisseurs?toast=supplier-created");
 }
 
 export async function updateSupplier(
@@ -78,16 +79,27 @@ export async function updateSupplier(
 
   revalidatePath("/admin/fournisseurs");
   revalidatePath(`/admin/fournisseurs/${supplierId}`);
-  redirect("/admin/fournisseurs");
+  redirect("/admin/fournisseurs?toast=supplier-updated");
 }
 
 export async function deleteSupplier(supplierId: string) {
-  await requireStaff();
+  const session = await requireStaff();
+  const supplier = await prisma.supplier.findUnique({ where: { id: supplierId } });
   await prisma.product.updateMany({
     where: { supplierId },
     data: { supplierId: null },
   });
   await prisma.supplier.delete({ where: { id: supplierId } });
+  if (supplier) {
+    await logAudit(prisma, {
+      actorId: session.userId,
+      actorName: session.name,
+      action: "supplier.deleted",
+      entityType: "Supplier",
+      entityId: supplierId,
+      summary: `Fournisseur supprimé : ${supplier.name}`,
+    });
+  }
   revalidatePath("/admin/fournisseurs");
-  redirect("/admin/fournisseurs");
+  redirect("/admin/fournisseurs?toast=supplier-deleted");
 }

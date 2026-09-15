@@ -1,8 +1,13 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { Badge, Button, Card, Input } from "@/components/ui";
+import { LiveSearchInput } from "@/components/live-search-input";
+import { Pagination } from "@/components/pagination";
+import { EmptyState } from "@/components/empty-state";
 import { formatDateOnly } from "@/lib/format";
 import { getLoyaltyTiers, resolveTier } from "@/lib/loyalty";
+import { DEFAULT_PAGE_SIZE, parsePage, totalPages } from "@/lib/pagination";
 
 const SEGMENTS = [
   { key: "tous", label: "Tous" },
@@ -16,6 +21,7 @@ export default async function ClientsPage({
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q : "";
   const segment = typeof params.segment === "string" ? params.segment : "tous";
+  const page = parsePage(params.page);
 
   const tiers = await getLoyaltyTiers();
 
@@ -51,6 +57,9 @@ export default async function ClientsPage({
     filtered = [...withSpend].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
+  const pages = totalPages(filtered.length);
+  const pageItems = filtered.slice((page - 1) * DEFAULT_PAGE_SIZE, page * DEFAULT_PAGE_SIZE);
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -82,65 +91,66 @@ export default async function ClientsPage({
             </Link>
           ))}
         </div>
-        <form className="max-w-sm">
-          <Input
-            type="search"
-            name="q"
-            defaultValue={q}
-            placeholder="Rechercher (nom, téléphone)..."
-          />
-        </form>
+        <Suspense fallback={<Input placeholder="Rechercher (nom, téléphone)..." disabled />}>
+          <div className="max-w-sm">
+            <LiveSearchInput placeholder="Rechercher (nom, téléphone)..." />
+          </div>
+        </Suspense>
       </div>
 
-      <Card className="overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-xs uppercase text-muted">
-            <tr>
-              <th className="px-4 py-3 text-left">Client</th>
-              <th className="px-4 py-3 text-left">Téléphone</th>
-              <th className="px-4 py-3 text-left">Palier</th>
-              <th className="px-4 py-3 text-right">Points</th>
-              <th className="px-4 py-3 text-right">Total dépensé</th>
-              <th className="px-4 py-3 text-left">Dernière commande</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((c) => {
-              const tier = resolveTier(tiers, c.lifetimePoints);
-              return (
-                <tr key={c.id} className="border-t border-border hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/admin/clients/${c.id}`}
-                      className="font-medium hover:text-brand"
-                    >
-                      {c.firstName} {c.lastName}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">{c.phone}</td>
-                  <td className="px-4 py-3">
-                    <Badge tone="muted">{tier.current.label}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Badge tone="brand">{c.points} pts</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-right">{c.totalSpent.toFixed(2)}€</td>
-                  <td className="px-4 py-3 text-muted">
-                    {c.lastOrderAt ? formatDateOnly(c.lastOrderAt) : "Jamais"}
-                  </td>
+      {pageItems.length === 0 ? (
+        <EmptyState
+          icon="search"
+          title="Aucun client trouvé"
+          description={q ? `Aucun résultat pour "${q}".` : "Créez votre premier compte fidélité."}
+        />
+      ) : (
+        <>
+          <Card className="overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-xs uppercase text-muted">
+                <tr>
+                  <th className="px-4 py-3 text-left">Client</th>
+                  <th className="px-4 py-3 text-left">Téléphone</th>
+                  <th className="px-4 py-3 text-left">Palier</th>
+                  <th className="px-4 py-3 text-right">Points</th>
+                  <th className="px-4 py-3 text-right">Total dépensé</th>
+                  <th className="px-4 py-3 text-left">Dernière commande</th>
                 </tr>
-              );
-            })}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-muted">
-                  Aucun client trouvé.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </Card>
+              </thead>
+              <tbody>
+                {pageItems.map((c) => {
+                  const tier = resolveTier(tiers, c.lifetimePoints);
+                  return (
+                    <tr key={c.id} className="border-t border-border hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/admin/clients/${c.id}`}
+                          className="font-medium hover:text-brand"
+                        >
+                          {c.firstName} {c.lastName}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">{c.phone}</td>
+                      <td className="px-4 py-3">
+                        <Badge tone="muted">{tier.current.label}</Badge>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Badge tone="brand">{c.points} pts</Badge>
+                      </td>
+                      <td className="px-4 py-3 text-right">{c.totalSpent.toFixed(2)}€</td>
+                      <td className="px-4 py-3 text-muted">
+                        {c.lastOrderAt ? formatDateOnly(c.lastOrderAt) : "Jamais"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Card>
+          <Pagination page={page} totalPages={pages} searchParams={params} basePath="/admin/clients" />
+        </>
+      )}
     </div>
   );
 }

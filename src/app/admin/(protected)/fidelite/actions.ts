@@ -1,9 +1,11 @@
 "use server";
 
 import { z } from "zod";
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-staff";
+import { logAudit } from "@/lib/audit";
 
 const tierSchema = z.object({
   label: z.string().min(1, "Nom requis"),
@@ -11,7 +13,7 @@ const tierSchema = z.object({
   perk: z.string().min(1, "Description de l'avantage requise"),
 });
 
-export type TierFormState = { error?: string };
+export type TierFormState = { error?: string; success?: boolean };
 
 export async function createTier(
   _prevState: TierFormState,
@@ -31,7 +33,7 @@ export async function createTier(
   await prisma.loyaltyTier.create({ data: parsed.data });
   revalidatePath("/admin/fidelite");
   revalidatePath("/fidelite");
-  return {};
+  return { success: true };
 }
 
 export async function updateTier(tierId: string, formData: FormData) {
@@ -47,11 +49,24 @@ export async function updateTier(tierId: string, formData: FormData) {
   await prisma.loyaltyTier.update({ where: { id: tierId }, data: parsed.data });
   revalidatePath("/admin/fidelite");
   revalidatePath("/fidelite");
+  redirect("/admin/fidelite?toast=updated");
 }
 
 export async function deleteTier(tierId: string) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const tier = await prisma.loyaltyTier.findUnique({ where: { id: tierId } });
   await prisma.loyaltyTier.delete({ where: { id: tierId } });
+  if (tier) {
+    await logAudit(prisma, {
+      actorId: session.userId,
+      actorName: session.name,
+      action: "tier.deleted",
+      entityType: "LoyaltyTier",
+      entityId: tierId,
+      summary: `Palier fidélité supprimé : ${tier.label} (${tier.minPoints} pts)`,
+    });
+  }
   revalidatePath("/admin/fidelite");
   revalidatePath("/fidelite");
+  redirect("/admin/fidelite?toast=tier-deleted");
 }

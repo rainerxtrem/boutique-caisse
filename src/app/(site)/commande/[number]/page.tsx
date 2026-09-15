@@ -4,7 +4,10 @@ import { prisma } from "@/lib/db";
 import { getCurrentCustomer } from "@/lib/auth-customer";
 import { Badge, Card } from "@/components/ui";
 import { PrintButton } from "@/components/print-button";
+import { QrCode } from "@/components/qr-code";
 import { formatDate, formatPrice } from "@/lib/format";
+import { computeVatBreakdown } from "@/lib/tax";
+import { getBaseUrl } from "@/lib/base-url";
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: "En attente de préparation",
@@ -30,13 +33,23 @@ export default async function OrderConfirmationPage({
 
   const order = await prisma.order.findUnique({
     where: { number },
-    include: { items: true, refunds: { include: { items: true } } },
+    include: {
+      items: { include: { product: { select: { vatRate: true } } } },
+      refunds: { include: { items: true } },
+    },
   });
 
   if (!order || order.customerId !== customer.id) notFound();
 
   const isCaisse = order.source === "CAISSE";
   const totalRefunded = order.refunds.reduce((sum, r) => sum + Number(r.amount), 0);
+  const vat = computeVatBreakdown(
+    order.items.map((item) => ({
+      amountTTC: Number(item.lineTotal),
+      vatRate: item.product ? Number(item.product.vatRate) : 20,
+    }))
+  );
+  const baseUrl = await getBaseUrl();
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -129,7 +142,24 @@ export default async function OrderConfirmationPage({
             </div>
           </div>
         )}
+
+        <div className="mt-3 flex flex-col gap-0.5 border-t border-border pt-3 text-xs text-muted">
+          <div className="flex items-center justify-between">
+            <span>Total HT</span>
+            <span>{formatPrice(vat.totalHT)}</span>
+          </div>
+          {vat.rows.map((row) => (
+            <div key={row.vatRate} className="flex items-center justify-between">
+              <span>dont TVA {row.vatRate}%</span>
+              <span>{formatPrice(row.vatAmount)}</span>
+            </div>
+          ))}
+        </div>
       </Card>
+
+      <div className="flex justify-center">
+        <QrCode value={`${baseUrl}/commande/${order.number}`} size={100} />
+      </div>
 
       {!isCaisse && (
         <p className="no-print text-center text-sm text-muted">

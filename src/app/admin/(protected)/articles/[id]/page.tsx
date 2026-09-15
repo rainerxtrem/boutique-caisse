@@ -1,7 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Badge, Button, Card } from "@/components/ui";
+import { Breadcrumb } from "@/components/breadcrumb";
+import { ConfirmSubmitButton } from "@/components/confirm-button";
 import { formatDate, formatPrice } from "@/lib/format";
 import { deleteProduct, duplicateProduct, updateProduct } from "../actions";
 import { ProductForm } from "../product-form";
@@ -38,9 +39,9 @@ export default async function ArticleDetailPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href="/admin/articles" className="text-sm text-muted hover:text-foreground">
-          ← Retour aux articles
-        </Link>
+        <Breadcrumb
+          items={[{ label: "Articles", href: "/admin/articles" }, { label: product.name }]}
+        />
         <div className="mt-1 flex items-center justify-between">
           <h1 className="text-2xl font-semibold">{product.name}</h1>
           <form action={boundDuplicate}>
@@ -63,6 +64,7 @@ export default async function ArticleDetailPage({
             description: product.description ?? "",
             price: Number(product.price),
             stock: product.stock,
+            vatRate: Number(product.vatRate),
             sku: product.sku,
             categoryId: product.categoryId ?? "",
             supplierId: product.supplierId ?? "",
@@ -110,9 +112,13 @@ export default async function ArticleDetailPage({
 
       {product.active && (
         <form action={boundDelete} className="w-fit">
-          <Button variant="danger" type="submit">
+          <ConfirmSubmitButton
+            variant="danger"
+            type="submit"
+            confirmMessage={`Désactiver "${product.name}" ? Il ne sera plus visible ni vendable.`}
+          >
             Désactiver cet article
-          </Button>
+          </ConfirmSubmitButton>
         </form>
       )}
     </div>

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth-staff";
+import { logAudit } from "@/lib/audit";
 
 function slugify(value: string) {
   return value
@@ -32,6 +33,7 @@ const productSchema = z.object({
   featured: z.coerce.boolean().optional(),
   flashPrice: z.coerce.number().min(0).optional().or(z.nan().transform(() => undefined)),
   flashPriceEndsAt: z.string().optional(),
+  vatRate: z.coerce.number().min(0).max(100).optional().or(z.nan().transform(() => undefined)),
 });
 
 function readProductForm(formData: FormData) {
@@ -52,6 +54,7 @@ function readProductForm(formData: FormData) {
     featured: formData.get("featured") === "on",
     flashPrice: formData.get("flashPrice") || undefined,
     flashPriceEndsAt: formData.get("flashPriceEndsAt") || undefined,
+    vatRate: formData.get("vatRate") || undefined,
   });
 }
 
@@ -103,13 +106,14 @@ export async function createProduct(
       flashPriceEndsAt: parsed.data.flashPriceEndsAt
         ? new Date(parsed.data.flashPriceEndsAt)
         : null,
+      vatRate: parsed.data.vatRate ?? 20,
     },
   });
 
   await syncRelatedProducts(product.id, formData.getAll("relatedProductIds") as string[]);
 
   revalidatePath("/admin/articles");
-  redirect("/admin/articles");
+  redirect("/admin/articles?toast=product-created");
 }
 
 export async function updateProduct(
@@ -167,6 +171,7 @@ export async function updateProduct(
         flashPriceEndsAt: parsed.data.flashPriceEndsAt
           ? new Date(parsed.data.flashPriceEndsAt)
           : null,
+        vatRate: parsed.data.vatRate ?? 20,
       },
     });
   });
@@ -175,7 +180,7 @@ export async function updateProduct(
 
   revalidatePath("/admin/articles");
   revalidatePath(`/admin/articles/${productId}`);
-  redirect("/admin/articles");
+  redirect("/admin/articles?toast=product-updated");
 }
 
 async function syncRelatedProducts(productId: string, relatedIds: string[]) {
@@ -190,7 +195,7 @@ async function syncRelatedProducts(productId: string, relatedIds: string[]) {
 }
 
 export async function duplicateProduct(productId: string) {
-  await requireStaff();
+  const session = await requireStaff();
   const original = await prisma.product.findUnique({ where: { id: productId } });
   if (!original) redirect("/admin/articles");
 
@@ -223,20 +228,46 @@ export async function duplicateProduct(productId: string) {
       prepTimeMinutes: original.prepTimeMinutes,
       categoryId: original.categoryId,
       supplierId: original.supplierId,
+      vatRate: original.vatRate,
     },
   });
 
-  redirect(`/admin/articles/${copy.id}`);
+  await logAudit(prisma, {
+    actorId: session.userId,
+    actorName: session.name,
+    action: "product.duplicated",
+    entityType: "Product",
+    entityId: copy.id,
+    summary: `Article dupliqué depuis "${original.name}"`,
+  });
+
+  redirect(`/admin/articles/${copy.id}?toast=product-duplicated`);
 }
 
 export async function deleteProduct(productId: string) {
-  await requireStaff();
-  await prisma.product.update({
+  const session = await requireStaff();
+  const product = await prisma.product.update({
     where: { id: productId },
     data: { active: false },
   });
+  await logAudit(prisma, {
+    actorId: session.userId,
+    actorName: session.name,
+    action: "product.deactivated",
+    entityType: "Product",
+    entityId: productId,
+    summary: `Article désactivé : ${product.name}`,
+  });
   revalidatePath("/admin/articles");
-  redirect("/admin/articles");
+  redirect("/admin/articles?toast=product-deactivated");
+}
+
+export async function updateProductStock(productId: string, formData: FormData) {
+  await requireStaff();
+  const stock = Number(formData.get("stock"));
+  if (!Number.isFinite(stock) || stock < 0) return;
+  await prisma.product.update({ where: { id: productId }, data: { stock: Math.floor(stock) } });
+  revalidatePath("/admin/articles");
 }
 
 export async function createCategory(formData: FormData) {

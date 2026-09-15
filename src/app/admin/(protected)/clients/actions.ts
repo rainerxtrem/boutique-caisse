@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth-staff";
 import { generateUniqueReferralCode } from "@/lib/referral";
+import { logAudit } from "@/lib/audit";
 
 const customerSchema = z.object({
   firstName: z.string().min(1, "Prénom requis"),
@@ -69,7 +70,7 @@ export async function createCustomer(
   });
 
   revalidatePath("/admin/clients");
-  redirect("/admin/clients");
+  redirect("/admin/clients?toast=customer-created");
 }
 
 export async function updateCustomer(
@@ -77,7 +78,7 @@ export async function updateCustomer(
   _prevState: CustomerFormState,
   formData: FormData
 ): Promise<CustomerFormState> {
-  await requireStaff();
+  const session = await requireStaff();
 
   const parsed = customerSchema.safeParse({
     firstName: formData.get("firstName"),
@@ -95,6 +96,9 @@ export async function updateCustomer(
   if (Number.isNaN(permanentDiscountPercent) || permanentDiscountPercent < 0 || permanentDiscountPercent > 100) {
     return { error: "Remise permanente invalide (0 à 100)." };
   }
+
+  const current = await prisma.customer.findUnique({ where: { id: customerId } });
+  if (!current) return { error: "Client introuvable." };
 
   const existing = await prisma.customer.findUnique({
     where: { phone: parsed.data.phone },
@@ -114,14 +118,36 @@ export async function updateCustomer(
     },
   });
 
+  if (Number(current.permanentDiscountPercent) !== permanentDiscountPercent) {
+    await logAudit(prisma, {
+      actorId: session.userId,
+      actorName: session.name,
+      action: "customer.discount_changed",
+      entityType: "Customer",
+      entityId: customerId,
+      summary: `Remise permanente de ${current.firstName} ${current.lastName} : ${Number(current.permanentDiscountPercent)}% → ${permanentDiscountPercent}%`,
+    });
+  }
+
   revalidatePath("/admin/clients");
   revalidatePath(`/admin/clients/${customerId}`);
-  redirect("/admin/clients");
+  redirect("/admin/clients?toast=customer-updated");
 }
 
 export async function deleteCustomer(customerId: string) {
-  await requireStaff();
+  const session = await requireStaff();
+  const customer = await prisma.customer.findUnique({ where: { id: customerId } });
   await prisma.customer.delete({ where: { id: customerId } });
+  if (customer) {
+    await logAudit(prisma, {
+      actorId: session.userId,
+      actorName: session.name,
+      action: "customer.deleted",
+      entityType: "Customer",
+      entityId: customerId,
+      summary: `Compte fidélité supprimé : ${customer.firstName} ${customer.lastName} (${customer.phone})`,
+    });
+  }
   revalidatePath("/admin/clients");
-  redirect("/admin/clients");
+  redirect("/admin/clients?toast=customer-deleted");
 }

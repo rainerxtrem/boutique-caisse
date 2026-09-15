@@ -34,6 +34,7 @@ export function ProductForm({
     description: string;
     price: number;
     stock: number;
+    vatRate: number;
     sku: string;
     categoryId: string;
     supplierId: string;
@@ -68,9 +69,9 @@ export function ProductForm({
             defaultValue={defaultValues?.description}
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div>
-            <Label htmlFor="price">Prix (€)</Label>
+            <Label htmlFor="price">Prix TTC (€)</Label>
             <Input
               id="price"
               name="price"
@@ -90,6 +91,18 @@ export function ProductForm({
               min="0"
               defaultValue={defaultValues?.stock}
               required
+            />
+          </div>
+          <div>
+            <Label htmlFor="vatRate">TVA (%)</Label>
+            <Input
+              id="vatRate"
+              name="vatRate"
+              type="number"
+              step="0.1"
+              min="0"
+              max="100"
+              defaultValue={defaultValues?.vatRate ?? 20}
             />
           </div>
         </div>

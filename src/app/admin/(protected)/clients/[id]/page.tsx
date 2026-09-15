@@ -1,7 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { Badge, Button, Card } from "@/components/ui";
+import { Badge, Card } from "@/components/ui";
+import { Breadcrumb } from "@/components/breadcrumb";
+import { ConfirmSubmitButton } from "@/components/confirm-button";
 import { formatDate, formatDateOnly, formatPrice } from "@/lib/format";
 import { getLoyaltyTier } from "@/lib/loyalty";
 import { deleteCustomer, updateCustomer } from "../actions";
@@ -29,9 +30,12 @@ export default async function ClientDetailPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href="/admin/clients" className="text-sm text-muted hover:text-foreground">
-          ← Retour aux clients
-        </Link>
+        <Breadcrumb
+          items={[
+            { label: "Clients fidélité", href: "/admin/clients" },
+            { label: `${customer.firstName} ${customer.lastName}` },
+          ]}
+        />
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-semibold">
             {customer.firstName} {customer.lastName}
@@ -114,9 +118,13 @@ export default async function ClientDetailPage({
       </div>
 
       <form action={boundDelete} className="w-fit">
-        <Button variant="danger" type="submit">
+        <ConfirmSubmitButton
+          variant="danger"
+          type="submit"
+          confirmMessage={`Supprimer définitivement le compte de ${customer.firstName} ${customer.lastName} ? Cette action est irréversible.`}
+        >
           Supprimer ce compte fidélité
-        </Button>
+        </ConfirmSubmitButton>
       </form>
     </div>
   );

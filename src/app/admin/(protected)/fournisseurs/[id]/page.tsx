@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { Button, Card } from "@/components/ui";
+import { Card } from "@/components/ui";
+import { Breadcrumb } from "@/components/breadcrumb";
+import { ConfirmSubmitButton } from "@/components/confirm-button";
 import { deleteSupplier, updateSupplier } from "../actions";
 import { SupplierForm } from "../supplier-form";
 
@@ -22,9 +24,12 @@ export default async function FournisseurDetailPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href="/admin/fournisseurs" className="text-sm text-muted hover:text-foreground">
-          ← Retour aux fournisseurs
-        </Link>
+        <Breadcrumb
+          items={[
+            { label: "Fournisseurs", href: "/admin/fournisseurs" },
+            { label: supplier.name },
+          ]}
+        />
         <h1 className="mt-1 text-2xl font-semibold">{supplier.name}</h1>
       </div>
 
@@ -61,9 +66,13 @@ export default async function FournisseurDetailPage({
       </div>
 
       <form action={boundDelete} className="w-fit">
-        <Button variant="danger" type="submit">
+        <ConfirmSubmitButton
+          variant="danger"
+          type="submit"
+          confirmMessage={`Supprimer le fournisseur "${supplier.name}" ?`}
+        >
           Supprimer ce fournisseur
-        </Button>
+        </ConfirmSubmitButton>
       </form>
     </div>
   );

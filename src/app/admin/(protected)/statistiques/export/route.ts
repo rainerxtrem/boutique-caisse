@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth-staff";
+import { computeVatBreakdown } from "@/lib/tax";
 
 function csvEscape(value: string) {
   if (/[",\n;]/.test(value)) {
@@ -13,7 +14,11 @@ export async function GET() {
   await requireStaff();
 
   const orders = await prisma.order.findMany({
-    include: { customer: true, user: true },
+    include: {
+      customer: true,
+      user: true,
+      items: { include: { product: { select: { vatRate: true } } } },
+    },
     orderBy: { createdAt: "desc" },
     take: 1000,
   });
@@ -28,11 +33,19 @@ export async function GET() {
     "SousTotal",
     "Remise",
     "Total",
+    "TotalHT",
+    "TotalTVA",
     "MoyenPaiement",
   ];
 
-  const rows = orders.map((o) =>
-    [
+  const rows = orders.map((o) => {
+    const vat = computeVatBreakdown(
+      o.items.map((item) => ({
+        amountTTC: Number(item.lineTotal),
+        vatRate: item.product ? Number(item.product.vatRate) : 20,
+      }))
+    );
+    return [
       o.number,
       o.createdAt.toISOString(),
       o.source,
@@ -42,11 +55,13 @@ export async function GET() {
       Number(o.subtotal).toFixed(2),
       Number(o.discountTotal).toFixed(2),
       Number(o.total).toFixed(2),
+      vat.totalHT.toFixed(2),
+      vat.totalVat.toFixed(2),
       o.paymentMethod ?? "",
     ]
       .map((v) => csvEscape(String(v)))
-      .join(";")
-  );
+      .join(";");
+  });
 
   const csv = [header.join(";"), ...rows].join("\n");
 

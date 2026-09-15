@@ -74,6 +74,20 @@ model Customer {
   favorites Favorite[]
 }
 
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorName  String?
+  action     String
+  entityType String
+  entityId   String?
+  summary    String
+  createdAt  DateTime @default(now())
+
+  @@index([entityType])
+  @@index([createdAt])
+}
+
 model LoyaltyTier {
   id        String   @id @default(cuid())
   label     String
@@ -113,6 +127,7 @@ model Product {
   imageUrl    String?
   sku         String   @unique
   active      Boolean  @default(true)
+  vatRate     Decimal  @default(20) @db.Decimal(5, 2)
   createdAt   DateTime @default(now())
 
   ingredients            String?

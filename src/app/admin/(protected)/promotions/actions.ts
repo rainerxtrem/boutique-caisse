@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth-staff";
+import { logAudit } from "@/lib/audit";
 
 const promoSchema = z.object({
   code: z.string().min(3, "3 caractères minimum"),
@@ -60,7 +61,7 @@ export async function createPromoCode(
   });
 
   revalidatePath("/admin/promotions");
-  redirect("/admin/promotions");
+  redirect("/admin/promotions?toast=promo-created");
 }
 
 export async function togglePromoCode(promoId: string, active: boolean) {
@@ -70,7 +71,19 @@ export async function togglePromoCode(promoId: string, active: boolean) {
 }
 
 export async function deletePromoCode(promoId: string) {
-  await requireStaff();
+  const session = await requireStaff();
+  const promo = await prisma.promoCode.findUnique({ where: { id: promoId } });
   await prisma.promoCode.delete({ where: { id: promoId } });
+  if (promo) {
+    await logAudit(prisma, {
+      actorId: session.userId,
+      actorName: session.name,
+      action: "promo.deleted",
+      entityType: "PromoCode",
+      entityId: promoId,
+      summary: `Code promo supprimé : ${promo.code}`,
+    });
+  }
   revalidatePath("/admin/promotions");
+  redirect("/admin/promotions?toast=promo-deleted");
 }

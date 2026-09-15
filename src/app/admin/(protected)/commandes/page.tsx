@@ -1,7 +1,13 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { Badge, Button, Card } from "@/components/ui";
+import { Badge, Button, Card, Input } from "@/components/ui";
+import { ConfirmSubmitButton } from "@/components/confirm-button";
+import { LiveSearchInput } from "@/components/live-search-input";
+import { Pagination } from "@/components/pagination";
+import { EmptyState } from "@/components/empty-state";
 import { formatDate, formatPrice } from "@/lib/format";
+import { parsePage, paginationSkipTake, totalPages } from "@/lib/pagination";
 import { updateOrderStatus } from "./actions";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -29,15 +35,32 @@ export default async function CommandesPage({
 }: PageProps<"/admin/commandes">) {
   const params = await searchParams;
   const status = typeof params.statut === "string" ? params.statut : "Tout";
+  const q = typeof params.q === "string" ? params.q : "";
+  const page = parsePage(params.page);
 
-  const orders = await prisma.order.findMany({
-    where: {
-      source: "WEB",
-      ...(status !== "Tout" ? { status: status as never } : {}),
-    },
-    include: { customer: true, items: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const where = {
+    source: "WEB" as const,
+    ...(status !== "Tout" ? { status: status as never } : {}),
+    ...(q
+      ? {
+          OR: [
+            { number: { contains: q, mode: "insensitive" as const } },
+            { customer: { firstName: { contains: q, mode: "insensitive" as const } } },
+            { customer: { lastName: { contains: q, mode: "insensitive" as const } } },
+          ],
+        }
+      : {}),
+  };
+
+  const [orders, count] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      include: { customer: true, items: true },
+      orderBy: { createdAt: "desc" },
+      ...paginationSkipTake(page, 15),
+    }),
+    prisma.order.count({ where }),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -48,92 +71,114 @@ export default async function CommandesPage({
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
-          <Link
-            key={f}
-            href={f === "Tout" ? "/admin/commandes" : `/admin/commandes?statut=${f}`}
-            className={`rounded-full px-3 py-1.5 text-sm font-medium ${
-              status === f
-                ? "bg-brand text-white"
-                : "bg-white text-muted border border-border hover:bg-gray-50"
-            }`}
-          >
-            {f === "Tout" ? "Toutes" : STATUS_LABEL[f]}
-          </Link>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {FILTERS.map((f) => (
+            <Link
+              key={f}
+              href={f === "Tout" ? "/admin/commandes" : `/admin/commandes?statut=${f}`}
+              className={`rounded-full px-3 py-1.5 text-sm font-medium ${
+                status === f
+                  ? "bg-brand text-white"
+                  : "bg-white text-muted border border-border hover:bg-gray-50"
+              }`}
+            >
+              {f === "Tout" ? "Toutes" : STATUS_LABEL[f]}
+            </Link>
+          ))}
+        </div>
+        <Suspense fallback={<Input placeholder="N° commande ou client..." disabled />}>
+          <div className="max-w-xs">
+            <LiveSearchInput placeholder="N° commande ou client..." />
+          </div>
+        </Suspense>
       </div>
 
       {orders.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-white py-16 text-center text-muted">
-          Aucune commande pour ce filtre.
-        </div>
+        <EmptyState
+          icon="box"
+          title="Aucune commande"
+          description="Aucune commande ne correspond à ce filtre."
+        />
       ) : (
-        <div className="flex flex-col gap-3">
-          {orders.map((order) => (
-            <Card key={order.id} className="p-4">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <Link href={`/admin/commandes/${order.id}`} className="font-semibold hover:text-brand">
-                    {order.number}
-                  </Link>
-                  <p className="text-sm text-muted">
-                    {order.customer
-                      ? `${order.customer.firstName} ${order.customer.lastName} · ${order.customer.phone}`
-                      : "Client inconnu"}
-                  </p>
-                  <p className="text-xs text-muted">{formatDate(order.createdAt)}</p>
+        <>
+          <div className="flex flex-col gap-3">
+            {orders.map((order) => (
+              <Card key={order.id} className="p-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <Link href={`/admin/commandes/${order.id}`} className="font-semibold hover:text-brand">
+                      {order.number}
+                    </Link>
+                    <p className="text-sm text-muted">
+                      {order.customer
+                        ? `${order.customer.firstName} ${order.customer.lastName} · ${order.customer.phone}`
+                        : "Client inconnu"}
+                    </p>
+                    <p className="text-xs text-muted">{formatDate(order.createdAt)}</p>
+                  </div>
+                  <div className="text-right">
+                    <Badge tone={STATUS_TONE[order.status]}>
+                      {STATUS_LABEL[order.status]}
+                    </Badge>
+                    <p className="mt-1 font-semibold">{formatPrice(Number(order.total))}</p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <Badge tone={STATUS_TONE[order.status]}>
-                    {STATUS_LABEL[order.status]}
-                  </Badge>
-                  <p className="mt-1 font-semibold">{formatPrice(Number(order.total))}</p>
-                </div>
-              </div>
 
-              <ul className="mt-3 border-t border-border pt-3 text-sm text-muted">
-                {order.items.map((item) => (
-                  <li key={item.id}>
-                    {item.qty} × {item.productName}
-                  </li>
-                ))}
-              </ul>
+                <ul className="mt-3 border-t border-border pt-3 text-sm text-muted">
+                  {order.items.map((item) => (
+                    <li key={item.id}>
+                      {item.qty} × {item.productName}
+                    </li>
+                  ))}
+                </ul>
 
-              {order.status !== "COMPLETED" && order.status !== "CANCELLED" && (
-                <div className="mt-3 flex gap-2 border-t border-border pt-3">
-                  {order.status === "PENDING" && (
-                    <form action={updateOrderStatus.bind(null, order.id, "READY")}>
-                      <Button variant="secondary" type="submit" className="!py-1.5 text-xs">
-                        Marquer prête
+                {order.status !== "COMPLETED" && order.status !== "CANCELLED" && (
+                  <div className="mt-3 flex gap-2 border-t border-border pt-3">
+                    {order.status === "PENDING" && (
+                      <form action={updateOrderStatus.bind(null, order.id, "READY")}>
+                        <Button variant="secondary" type="submit" className="!py-1.5 text-xs">
+                          Marquer prête
+                        </Button>
+                      </form>
+                    )}
+                    <form action={updateOrderStatus.bind(null, order.id, "COMPLETED")}>
+                      <Button type="submit" className="!py-1.5 text-xs">
+                        Marquer retirée / terminée
                       </Button>
                     </form>
-                  )}
-                  <form action={updateOrderStatus.bind(null, order.id, "COMPLETED")}>
-                    <Button type="submit" className="!py-1.5 text-xs">
-                      Marquer retirée / terminée
-                    </Button>
-                  </form>
-                  <form action={updateOrderStatus.bind(null, order.id, "CANCELLED")}>
-                    <Button variant="danger" type="submit" className="!py-1.5 text-xs">
-                      Annuler
-                    </Button>
-                  </form>
-                </div>
-              )}
-              {(order.status === "COMPLETED" || order.status === "PARTIALLY_REFUNDED") && (
-                <div className="mt-3 border-t border-border pt-3">
-                  <Link
-                    href={`/admin/commandes/${order.id}`}
-                    className="text-xs font-medium text-brand hover:underline"
-                  >
-                    Voir le détail / rembourser
-                  </Link>
-                </div>
-              )}
-            </Card>
-          ))}
-        </div>
+                    <form action={updateOrderStatus.bind(null, order.id, "CANCELLED")}>
+                      <ConfirmSubmitButton
+                        variant="danger"
+                        type="submit"
+                        className="!py-1.5 text-xs"
+                        confirmMessage={`Annuler la commande ${order.number} ? Le stock sera restitué.`}
+                      >
+                        Annuler
+                      </ConfirmSubmitButton>
+                    </form>
+                  </div>
+                )}
+                {(order.status === "COMPLETED" || order.status === "PARTIALLY_REFUNDED") && (
+                  <div className="mt-3 border-t border-border pt-3">
+                    <Link
+                      href={`/admin/commandes/${order.id}`}
+                      className="text-xs font-medium text-brand hover:underline"
+                    >
+                      Voir le détail / rembourser
+                    </Link>
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+          <Pagination
+            page={page}
+            totalPages={totalPages(count, 15)}
+            searchParams={params}
+            basePath="/admin/commandes"
+          />
+        </>
       )}
     </div>
   );

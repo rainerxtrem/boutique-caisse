@@ -17,7 +17,9 @@ export async function proxy(request: NextRequest) {
     }
 
     if (
-      (pathname.startsWith("/admin/utilisateurs") || pathname.startsWith("/admin/fidelite")) &&
+      (pathname.startsWith("/admin/utilisateurs") ||
+        pathname.startsWith("/admin/fidelite") ||
+        pathname.startsWith("/admin/audit")) &&
       payload.role !== "ADMIN"
     ) {
       const url = request.nextUrl.clone();

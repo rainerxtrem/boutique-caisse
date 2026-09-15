@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-staff";
+import { logAudit } from "@/lib/audit";
 
 const userSchema = z.object({
   username: z.string().min(3, "3 caractères minimum"),
@@ -20,7 +21,7 @@ export async function createStaffUser(
   _prevState: UserFormState,
   formData: FormData
 ): Promise<UserFormState> {
-  await requireAdmin();
+  const session = await requireAdmin();
 
   const parsed = userSchema.safeParse({
     username: formData.get("username"),
@@ -40,7 +41,7 @@ export async function createStaffUser(
     return { error: "Cet identifiant est déjà utilisé." };
   }
 
-  await prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       username: parsed.data.username,
       name: parsed.data.name,
@@ -49,8 +50,17 @@ export async function createStaffUser(
     },
   });
 
+  await logAudit(prisma, {
+    actorId: session.userId,
+    actorName: session.name,
+    action: "user.created",
+    entityType: "User",
+    entityId: user.id,
+    summary: `Utilisateur créé : ${user.name} (${user.username}, ${user.role})`,
+  });
+
   revalidatePath("/admin/utilisateurs");
-  redirect("/admin/utilisateurs");
+  redirect("/admin/utilisateurs?toast=user-created");
 }
 
 export async function deleteStaffUser(userId: string) {
@@ -58,6 +68,18 @@ export async function deleteStaffUser(userId: string) {
   if (session.userId === userId) {
     return;
   }
+  const user = await prisma.user.findUnique({ where: { id: userId } });
   await prisma.user.delete({ where: { id: userId } });
+  if (user) {
+    await logAudit(prisma, {
+      actorId: session.userId,
+      actorName: session.name,
+      action: "user.deleted",
+      entityType: "User",
+      entityId: userId,
+      summary: `Utilisateur supprimé : ${user.name} (${user.username})`,
+    });
+  }
   revalidatePath("/admin/utilisateurs");
+  redirect("/admin/utilisateurs?toast=user-deleted");
 }

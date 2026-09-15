@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { requireStaff } from "@/lib/auth-staff";
 import { Badge, Button, Card } from "@/components/ui";
+import { ConfirmSubmitButton } from "@/components/confirm-button";
 import { formatDateOnly } from "@/lib/format";
 import { deleteStaffUser } from "./actions";
 
@@ -48,9 +49,14 @@ export default async function UtilisateursPage() {
                 <td className="px-4 py-3 text-right">
                   {u.id !== session.userId && (
                     <form action={deleteStaffUser.bind(null, u.id)}>
-                      <Button variant="danger" type="submit" className="!py-1 text-xs">
+                      <ConfirmSubmitButton
+                        variant="danger"
+                        type="submit"
+                        className="!py-1 text-xs"
+                        confirmMessage={`Supprimer l'utilisateur ${u.name} ?`}
+                      >
                         Supprimer
-                      </Button>
+                      </ConfirmSubmitButton>
                     </form>
                   )}
                 </td>

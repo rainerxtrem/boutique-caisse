@@ -1,13 +1,17 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { Badge, Card } from "@/components/ui";
+import { Sparkline } from "@/components/sparkline";
 import { formatPrice } from "@/lib/format";
 
 export default async function AdminDashboardPage() {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
-  const [todayOrders, pendingOrders, lowStock, customerCount] =
+  const sevenDaysAgo = new Date(startOfDay);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+
+  const [todayOrders, pendingOrders, lowStock, customerCount, weekOrders] =
     await Promise.all([
       prisma.order.findMany({
         where: { createdAt: { gte: startOfDay }, status: { not: "CANCELLED" } },
@@ -19,14 +23,35 @@ export default async function AdminDashboardPage() {
         take: 6,
       }),
       prisma.customer.count(),
+      prisma.order.findMany({
+        where: { createdAt: { gte: sevenDaysAgo }, status: { not: "CANCELLED" } },
+        select: { createdAt: true, total: true },
+      }),
     ]);
 
   const todayTotal = todayOrders.reduce((sum, o) => sum + Number(o.total), 0);
   const todaySalesCount = todayOrders.filter((o) => o.source === "CAISSE").length;
 
+  const revenueByDay = new Map<string, number>();
+  const ordersByDay = new Map<string, number>();
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(sevenDaysAgo);
+    d.setDate(d.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    revenueByDay.set(key, 0);
+    ordersByDay.set(key, 0);
+  }
+  for (const o of weekOrders) {
+    const key = o.createdAt.toISOString().slice(0, 10);
+    revenueByDay.set(key, (revenueByDay.get(key) ?? 0) + Number(o.total));
+    ordersByDay.set(key, (ordersByDay.get(key) ?? 0) + 1);
+  }
+  const revenueSpark = Array.from(revenueByDay.values()).map((value) => ({ value }));
+  const ordersSpark = Array.from(ordersByDay.values()).map((value) => ({ value }));
+
   const stats = [
-    { label: "Ventes du jour", value: formatPrice(todayTotal) },
-    { label: "Tickets du jour", value: todayOrders.length.toString() },
+    { label: "Ventes du jour", value: formatPrice(todayTotal), spark: revenueSpark },
+    { label: "Tickets du jour", value: todayOrders.length.toString(), spark: ordersSpark },
     { label: "Ventes caisse aujourd'hui", value: todaySalesCount.toString() },
     { label: "Clients fidélité", value: customerCount.toString() },
   ];
@@ -40,9 +65,14 @@ export default async function AdminDashboardPage() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {stats.map((s) => (
-          <Card key={s.label} className="p-5">
+          <Card key={s.label} className="overflow-hidden p-5">
             <p className="text-sm text-muted">{s.label}</p>
             <p className="mt-1 text-2xl font-semibold">{s.value}</p>
+            {s.spark && (
+              <div className="-mx-1 -mb-1 mt-1">
+                <Sparkline data={s.spark} />
+              </div>
+            )}
           </Card>
         ))}
       </div>
