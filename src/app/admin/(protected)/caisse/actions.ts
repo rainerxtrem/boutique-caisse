@@ -6,13 +6,95 @@ import { withOrderNumber, creditLoyaltyPoints } from "@/lib/orders";
 import { computeOrderPricing, getEffectivePrice } from "@/lib/pricing";
 import { resolvePromoCode } from "@/lib/promo";
 import { isBirthdayPeriod, BIRTHDAY_DISCOUNT_PERCENT } from "@/lib/loyalty";
-import { applyReferralBonusIfFirstOrder } from "@/lib/referral";
+import { applyReferralBonusIfFirstOrder, generateUniqueReferralCode } from "@/lib/referral";
 
 export async function findCustomerByPhone(phone: string) {
   const customer = await prisma.customer.findUnique({
     where: { phone: phone.trim() },
   });
   return customer;
+}
+
+export type CustomerSearchResult = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  points: number;
+  permanentDiscountPercent: number;
+};
+
+export async function searchCustomers(query: string): Promise<CustomerSearchResult[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+
+  const customers = await prisma.customer.findMany({
+    where: {
+      OR: [
+        { firstName: { contains: q, mode: "insensitive" } },
+        { lastName: { contains: q, mode: "insensitive" } },
+        { phone: { contains: q } },
+      ],
+    },
+    orderBy: { firstName: "asc" },
+    take: 8,
+  });
+
+  return customers.map((c) => ({
+    id: c.id,
+    firstName: c.firstName,
+    lastName: c.lastName,
+    phone: c.phone,
+    points: c.points,
+    permanentDiscountPercent: Number(c.permanentDiscountPercent),
+  }));
+}
+
+export type CreateFlashCustomerResult =
+  | { success: true; customer: CustomerSearchResult }
+  | { success: false; error: string };
+
+export async function createFlashCustomer(
+  firstName: string,
+  lastName: string,
+  phone: string
+): Promise<CreateFlashCustomerResult> {
+  await requireStaff();
+
+  const cleanPhone = phone.trim();
+  if (!cleanPhone || cleanPhone.length < 6) {
+    return { success: false, error: "Numéro de téléphone invalide." };
+  }
+  if (!firstName.trim()) {
+    return { success: false, error: "Prénom requis." };
+  }
+
+  const existing = await prisma.customer.findUnique({ where: { phone: cleanPhone } });
+  if (existing) {
+    return { success: false, error: "Un compte existe déjà avec ce numéro." };
+  }
+
+  const referralCode = await generateUniqueReferralCode();
+  const customer = await prisma.customer.create({
+    data: {
+      firstName: firstName.trim(),
+      lastName: lastName.trim() || "—",
+      phone: cleanPhone,
+      referralCode,
+    },
+  });
+
+  return {
+    success: true,
+    customer: {
+      id: customer.id,
+      firstName: customer.firstName,
+      lastName: customer.lastName,
+      phone: customer.phone,
+      points: customer.points,
+      permanentDiscountPercent: Number(customer.permanentDiscountPercent),
+    },
+  };
 }
 
 export async function previewPromoCode(code: string, subtotal: number) {

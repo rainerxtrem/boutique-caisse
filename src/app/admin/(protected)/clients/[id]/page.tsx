@@ -24,7 +24,7 @@ export default async function ClientDetailPage({
 
   const boundUpdate = updateCustomer.bind(null, customer.id);
   const boundDelete = deleteCustomer.bind(null, customer.id);
-  const tier = getLoyaltyTier(customer.lifetimePoints);
+  const tier = await getLoyaltyTier(customer.lifetimePoints);
 
   return (
     <div className="flex flex-col gap-6">
@@ -41,6 +41,12 @@ export default async function ClientDetailPage({
             <Badge tone="brand">{customer.points} pts</Badge>
           </div>
         </div>
+        {!customer.birthDate && (
+          <p className="mt-1 text-xs text-amber-700">
+            Compte créé rapidement en caisse — pensez à compléter la date de
+            naissance ci-dessous.
+          </p>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -52,7 +58,7 @@ export default async function ClientDetailPage({
             defaultValues={{
               firstName: customer.firstName,
               lastName: customer.lastName,
-              birthDate: customer.birthDate.toISOString().slice(0, 10),
+              birthDate: customer.birthDate ? customer.birthDate.toISOString().slice(0, 10) : "",
               phone: customer.phone,
               permanentDiscountPercent: Number(customer.permanentDiscountPercent),
             }}

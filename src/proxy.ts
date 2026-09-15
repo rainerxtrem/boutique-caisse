@@ -16,7 +16,10 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    if (pathname.startsWith("/admin/utilisateurs") && payload.role !== "ADMIN") {
+    if (
+      (pathname.startsWith("/admin/utilisateurs") || pathname.startsWith("/admin/fidelite")) &&
+      payload.role !== "ADMIN"
+    ) {
       const url = request.nextUrl.clone();
       url.pathname = "/admin";
       return NextResponse.redirect(url);

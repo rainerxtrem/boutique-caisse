@@ -58,7 +58,7 @@ export function CustomerForm({
             name="birthDate"
             type="date"
             defaultValue={defaultValues?.birthDate}
-            required
+            required={mode === "create"}
           />
         </div>
         <div>

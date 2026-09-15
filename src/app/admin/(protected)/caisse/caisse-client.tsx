@@ -6,12 +6,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui";
 import { formatPrice } from "@/lib/format";
 import { computeOrderPricing } from "@/lib/pricing";
-import {
-  completeSale,
-  findCustomerByPhone,
-  previewPromoCode,
-  type PaymentMethod,
-} from "./actions";
+import { completeSale, previewPromoCode, type PaymentMethod } from "./actions";
+import { CustomerSearch, type CaisseCustomer } from "./customer-search";
 
 type RelatedProduct = { id: string; name: string; price: number };
 
@@ -33,15 +29,6 @@ type TicketLine = {
   discountPercent: number;
 };
 
-type Customer = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  points: number;
-  permanentDiscountPercent: number;
-};
-
 const REGISTER_STORAGE_KEY = "caisse_register_label";
 
 export function CaisseClient({
@@ -59,12 +46,9 @@ export function CaisseClient({
   const [activeCategory, setActiveCategory] = useState<string | "Tout">("Tout");
   const [search, setSearch] = useState("");
   const [globalDiscount, setGlobalDiscount] = useState(0);
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [phoneInput, setPhoneInput] = useState("");
-  const [customerError, setCustomerError] = useState<string | null>(null);
+  const [customer, setCustomer] = useState<CaisseCustomer | null>(null);
   const [saleError, setSaleError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [searchingCustomer, startCustomerTransition] = useTransition();
 
   const [promoInput, setPromoInput] = useState("");
   const [promo, setPromo] = useState<{ code: string; type: "PERCENT" | "FIXED"; value: number } | null>(null);
@@ -193,26 +177,6 @@ export function CaisseClient({
     setPromoError(null);
     setAmountReceived("");
     setSuggestion([]);
-  }
-
-  function handleFindCustomer() {
-    setCustomerError(null);
-    startCustomerTransition(async () => {
-      const found = await findCustomerByPhone(phoneInput);
-      if (!found) {
-        setCustomerError("Aucun client trouvé pour ce numéro.");
-        setCustomer(null);
-        return;
-      }
-      setCustomer({
-        id: found.id,
-        firstName: found.firstName,
-        lastName: found.lastName,
-        phone: found.phone,
-        points: found.points,
-        permanentDiscountPercent: Number(found.permanentDiscountPercent),
-      });
-    });
   }
 
   function handleCheckPromo() {
@@ -398,45 +362,11 @@ export function CaisseClient({
           <p className="font-medium">{vendeurName}</p>
 
           <div className="mt-3">
-            {customer ? (
-              <div className="flex items-center justify-between rounded-lg bg-brand-light p-2 text-sm">
-                <div>
-                  <p className="font-medium text-brand-dark">
-                    {customer.firstName} {customer.lastName}
-                  </p>
-                  <p className="text-xs text-brand-dark/70">
-                    {customer.points} pts · {customer.phone}
-                    {customer.permanentDiscountPercent > 0 &&
-                      ` · remise perm. ${customer.permanentDiscountPercent}%`}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setCustomer(null)}
-                  className="text-xs text-brand-dark hover:underline"
-                >
-                  Retirer
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <input
-                  type="tel"
-                  placeholder="Tél. client (fidélité)"
-                  value={phoneInput}
-                  onChange={(e) => setPhoneInput(e.target.value)}
-                  className="flex-1 rounded-lg border border-border px-2 py-1.5 text-sm focus:border-brand focus:ring-2 focus:ring-brand/20"
-                />
-                <Button
-                  variant="secondary"
-                  className="!px-3 !py-1.5 text-xs"
-                  onClick={handleFindCustomer}
-                  disabled={searchingCustomer || !phoneInput}
-                >
-                  Associer
-                </Button>
-              </div>
-            )}
-            {customerError && <p className="mt-1 text-xs text-danger">{customerError}</p>}
+            <CustomerSearch
+              selected={customer}
+              onSelect={setCustomer}
+              onClear={() => setCustomer(null)}
+            />
           </div>
         </div>
 

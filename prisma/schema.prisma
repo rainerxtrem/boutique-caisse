@@ -57,7 +57,7 @@ model Customer {
   id                       String     @id @default(cuid())
   firstName                String
   lastName                 String
-  birthDate                DateTime
+  birthDate                DateTime?
   phone                    String     @unique
   points                   Int        @default(0)
   lifetimePoints           Int        @default(0)
@@ -72,6 +72,15 @@ model Customer {
 
   orders    Order[]
   favorites Favorite[]
+}
+
+model LoyaltyTier {
+  id        String   @id @default(cuid())
+  label     String
+  minPoints Int
+  perk      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Category {

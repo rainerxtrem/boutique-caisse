@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { Badge, Button, Card, Input } from "@/components/ui";
 import { formatDateOnly } from "@/lib/format";
-import { getLoyaltyTier } from "@/lib/loyalty";
+import { getLoyaltyTiers, resolveTier } from "@/lib/loyalty";
 
 const SEGMENTS = [
   { key: "tous", label: "Tous" },
@@ -16,6 +16,8 @@ export default async function ClientsPage({
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q : "";
   const segment = typeof params.segment === "string" ? params.segment : "tous";
+
+  const tiers = await getLoyaltyTiers();
 
   const customers = await prisma.customer.findMany({
     where: q
@@ -104,7 +106,7 @@ export default async function ClientsPage({
           </thead>
           <tbody>
             {filtered.map((c) => {
-              const tier = getLoyaltyTier(c.lifetimePoints);
+              const tier = resolveTier(tiers, c.lifetimePoints);
               return (
                 <tr key={c.id} className="border-t border-border hover:bg-gray-50">
                   <td className="px-4 py-3">

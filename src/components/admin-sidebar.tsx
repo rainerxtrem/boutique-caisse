@@ -16,6 +16,7 @@ const LINKS = [
 ];
 
 const ADMIN_ONLY_LINKS = [
+  { href: "/admin/fidelite", label: "Paliers fidélité", icon: "★" },
   { href: "/admin/utilisateurs", label: "Utilisateurs", icon: "◎" },
 ];
 

@@ -10,7 +10,7 @@ import { generateUniqueReferralCode } from "@/lib/referral";
 const customerSchema = z.object({
   firstName: z.string().min(1, "Prénom requis"),
   lastName: z.string().min(1, "Nom requis"),
-  birthDate: z.string().min(1, "Date de naissance requise"),
+  birthDate: z.string().optional(),
   phone: z.string().min(6, "Numéro de téléphone invalide"),
 });
 
@@ -31,6 +31,9 @@ export async function createCustomer(
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide." };
+  }
+  if (!parsed.data.birthDate) {
+    return { error: "Date de naissance requise." };
   }
 
   const existing = await prisma.customer.findUnique({
@@ -58,7 +61,7 @@ export async function createCustomer(
     data: {
       firstName: parsed.data.firstName,
       lastName: parsed.data.lastName,
-      birthDate: new Date(parsed.data.birthDate),
+      birthDate: new Date(parsed.data.birthDate as string),
       phone: parsed.data.phone,
       referralCode,
       referredById,
@@ -105,7 +108,7 @@ export async function updateCustomer(
     data: {
       firstName: parsed.data.firstName,
       lastName: parsed.data.lastName,
-      birthDate: new Date(parsed.data.birthDate),
+      birthDate: parsed.data.birthDate ? new Date(parsed.data.birthDate) : null,
       phone: parsed.data.phone,
       permanentDiscountPercent,
     },

@@ -1,21 +1,38 @@
-export type LoyaltyTierKey = "BRONZE" | "ARGENT" | "OR";
+import "server-only";
+import { prisma } from "@/lib/db";
 
-export const LOYALTY_TIERS: {
-  key: LoyaltyTierKey;
+export type LoyaltyTier = {
+  id: string;
   label: string;
   minPoints: number;
   perk: string;
-}[] = [
-  { key: "BRONZE", label: "Bronze", minPoints: 0, perk: "Bienvenue dans le programme fidélité" },
-  { key: "ARGENT", label: "Argent", minPoints: 100, perk: "Offres anniversaire renforcées" },
-  { key: "OR", label: "Or", minPoints: 300, perk: "Accès prioritaire aux ventes flash" },
-];
+};
 
-export function getLoyaltyTier(lifetimePoints: number) {
-  const sorted = [...LOYALTY_TIERS].sort((a, b) => b.minPoints - a.minPoints);
-  const current = sorted.find((t) => lifetimePoints >= t.minPoints) ?? LOYALTY_TIERS[0];
-  const currentIndex = LOYALTY_TIERS.findIndex((t) => t.key === current.key);
-  const next = LOYALTY_TIERS[currentIndex + 1] ?? null;
+const FALLBACK_TIER: LoyaltyTier = {
+  id: "fallback",
+  label: "Membre",
+  minPoints: 0,
+  perk: "Bienvenue dans le programme fidélité",
+};
+
+/** Fetch all configured tiers, sorted by threshold. Falls back to a single default tier if none are configured. */
+export async function getLoyaltyTiers(): Promise<LoyaltyTier[]> {
+  const tiers = await prisma.loyaltyTier.findMany({ orderBy: { minPoints: "asc" } });
+  return tiers.length > 0 ? tiers : [FALLBACK_TIER];
+}
+
+/** Resolve a customer's current/next tier and progress from an already-fetched tier list. */
+export function resolveTier(tiers: LoyaltyTier[], lifetimePoints: number) {
+  const sorted = [...tiers].sort((a, b) => a.minPoints - b.minPoints);
+  let current = sorted[0];
+  let currentIndex = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    if (lifetimePoints >= sorted[i].minPoints) {
+      current = sorted[i];
+      currentIndex = i;
+    }
+  }
+  const next = sorted[currentIndex + 1] ?? null;
   return {
     current,
     next,
@@ -23,11 +40,18 @@ export function getLoyaltyTier(lifetimePoints: number) {
   };
 }
 
+/** Convenience helper for a single customer: fetches tiers then resolves. */
+export async function getLoyaltyTier(lifetimePoints: number) {
+  const tiers = await getLoyaltyTiers();
+  return resolveTier(tiers, lifetimePoints);
+}
+
 export const BIRTHDAY_DISCOUNT_PERCENT = 10;
 export const BIRTHDAY_WINDOW_DAYS = 7;
 
 /** True when `now` falls within BIRTHDAY_WINDOW_DAYS of the customer's birth month/day. */
-export function isBirthdayPeriod(birthDate: Date, now: Date = new Date()) {
+export function isBirthdayPeriod(birthDate: Date | null, now: Date = new Date()) {
+  if (!birthDate) return false;
   const year = now.getFullYear();
   const candidates = [year - 1, year, year + 1].map(
     (y) => new Date(y, birthDate.getMonth(), birthDate.getDate())
