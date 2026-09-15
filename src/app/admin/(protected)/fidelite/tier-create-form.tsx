@@ -30,6 +30,19 @@ export function TierCreateForm() {
         <Input id="minPoints" name="minPoints" type="number" min={0} required />
       </div>
       <div>
+        <Label htmlFor="discountPercent">Remise permanente (%)</Label>
+        <Input
+          id="discountPercent"
+          name="discountPercent"
+          type="number"
+          min={0}
+          max={100}
+          step="0.01"
+          defaultValue={0}
+          required
+        />
+      </div>
+      <div>
         <Label htmlFor="perk">Avantage(s)</Label>
         <Textarea
           id="perk"

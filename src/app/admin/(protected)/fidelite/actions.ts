@@ -11,6 +11,7 @@ const tierSchema = z.object({
   label: z.string().min(1, "Nom requis"),
   minPoints: z.coerce.number().int().min(0, "Seuil invalide"),
   perk: z.string().min(1, "Description de l'avantage requise"),
+  discountPercent: z.coerce.number().min(0, "Remise invalide").max(100, "Remise invalide"),
 });
 
 export type TierFormState = { error?: string; success?: boolean };
@@ -25,6 +26,7 @@ export async function createTier(
     label: formData.get("label"),
     minPoints: formData.get("minPoints"),
     perk: formData.get("perk"),
+    discountPercent: formData.get("discountPercent") || 0,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide." };
@@ -43,6 +45,7 @@ export async function updateTier(tierId: string, formData: FormData) {
     label: formData.get("label"),
     minPoints: formData.get("minPoints"),
     perk: formData.get("perk"),
+    discountPercent: formData.get("discountPercent") || 0,
   });
   if (!parsed.success) return;
 

@@ -24,7 +24,7 @@ export default async function FidelitePaliersPage() {
           {tiers.map((tier) => (
             <Card key={tier.id} className="p-5">
               <form action={updateTier.bind(null, tier.id)} className="flex flex-col gap-3">
-                <div className="grid grid-cols-[1fr_160px] gap-3">
+                <div className="grid grid-cols-[1fr_140px_140px] gap-3">
                   <div>
                     <label className="mb-1.5 block text-sm font-medium">Nom du palier</label>
                     <Input name="label" defaultValue={tier.label} required />
@@ -38,6 +38,20 @@ export default async function FidelitePaliersPage() {
                       type="number"
                       min={0}
                       defaultValue={tier.minPoints}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium">
+                      Remise perm. (%)
+                    </label>
+                    <Input
+                      name="discountPercent"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      defaultValue={Number(tier.discountPercent)}
                       required
                     />
                   </div>

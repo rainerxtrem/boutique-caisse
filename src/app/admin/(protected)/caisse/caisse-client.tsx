@@ -121,7 +121,7 @@ export function CaisseClient({
   }, [products, activeCategory, search]);
 
   const customerDiscountPercent =
-    (customer?.permanentDiscountPercent ?? 0);
+    (customer?.permanentDiscountPercent ?? 0) + (customer?.tierDiscountPercent ?? 0);
 
   const selectedReward = useMemo(
     () => availableRewards.find((r) => r.id === selectedRewardId) ?? null,
@@ -252,6 +252,12 @@ export function CaisseClient({
     setSaleError(null);
     if (paymentMethod !== "CARD" && receivedAmount < pricing.total) {
       setSaleError("Le montant reçu est inférieur au total.");
+      return;
+    }
+    if (
+      !customer &&
+      !window.confirm("Aucun client n'est associé à cet achat, confirmez-vous la vente ?")
+    ) {
       return;
     }
     startTransition(async () => {

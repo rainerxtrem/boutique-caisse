@@ -6,6 +6,7 @@ export type LoyaltyTier = {
   label: string;
   minPoints: number;
   perk: string;
+  discountPercent: number;
 };
 
 const FALLBACK_TIER: LoyaltyTier = {
@@ -13,12 +14,15 @@ const FALLBACK_TIER: LoyaltyTier = {
   label: "Membre",
   minPoints: 0,
   perk: "Bienvenue dans le programme fidélité",
+  discountPercent: 0,
 };
 
 /** Fetch all configured tiers, sorted by threshold. Falls back to a single default tier if none are configured. */
 export async function getLoyaltyTiers(): Promise<LoyaltyTier[]> {
   const tiers = await prisma.loyaltyTier.findMany({ orderBy: { minPoints: "asc" } });
-  return tiers.length > 0 ? tiers : [FALLBACK_TIER];
+  return tiers.length > 0
+    ? tiers.map((t) => ({ ...t, discountPercent: Number(t.discountPercent) }))
+    : [FALLBACK_TIER];
 }
 
 /** Resolve a customer's current/next tier and progress from an already-fetched tier list. */

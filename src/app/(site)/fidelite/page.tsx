@@ -154,6 +154,11 @@ export default async function FidelitePage() {
                 <p className="text-xs text-muted">
                   Dès {t.minPoints} pts cumulés
                 </p>
+                {t.discountPercent > 0 && (
+                  <p className="text-lg font-bold text-brand-dark">
+                    -{t.discountPercent}% <span className="text-sm font-medium">à vie</span>
+                  </p>
+                )}
                 <p className="text-sm">{t.perk}</p>
               </Card>
             );

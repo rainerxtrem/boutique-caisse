@@ -5,7 +5,7 @@ import { requirePermission } from "@/lib/permissions";
 import { withOrderNumber, creditLoyaltyPoints } from "@/lib/orders";
 import { computeOrderPricing, getEffectivePrice } from "@/lib/pricing";
 import { resolvePromoCode } from "@/lib/promo";
-import { isBirthdayPeriod, BIRTHDAY_DISCOUNT_PERCENT } from "@/lib/loyalty";
+import { isBirthdayPeriod, BIRTHDAY_DISCOUNT_PERCENT, getLoyaltyTiers, resolveTier } from "@/lib/loyalty";
 import { applyReferralBonusIfFirstOrder, generateUniqueReferralCode } from "@/lib/referral";
 import { logAudit } from "@/lib/audit";
 import { formatPrice } from "@/lib/format";
@@ -25,6 +25,8 @@ export type CustomerSearchResult = {
   phone: string;
   points: number;
   permanentDiscountPercent: number;
+  tierLabel: string;
+  tierDiscountPercent: number;
 };
 
 export async function searchCustomers(query: string): Promise<CustomerSearchResult[]> {
@@ -32,26 +34,34 @@ export async function searchCustomers(query: string): Promise<CustomerSearchResu
   const q = query.trim();
   if (q.length < 2) return [];
 
-  const customers = await prisma.customer.findMany({
-    where: {
-      OR: [
-        { firstName: { contains: q, mode: "insensitive" } },
-        { lastName: { contains: q, mode: "insensitive" } },
-        { phone: { contains: q } },
-      ],
-    },
-    orderBy: { firstName: "asc" },
-    take: 8,
-  });
+  const [customers, tiers] = await Promise.all([
+    prisma.customer.findMany({
+      where: {
+        OR: [
+          { firstName: { contains: q, mode: "insensitive" } },
+          { lastName: { contains: q, mode: "insensitive" } },
+          { phone: { contains: q } },
+        ],
+      },
+      orderBy: { firstName: "asc" },
+      take: 8,
+    }),
+    getLoyaltyTiers(),
+  ]);
 
-  return customers.map((c) => ({
-    id: c.id,
-    firstName: c.firstName,
-    lastName: c.lastName,
-    phone: c.phone,
-    points: c.points,
-    permanentDiscountPercent: Number(c.permanentDiscountPercent),
-  }));
+  return customers.map((c) => {
+    const tier = resolveTier(tiers, c.lifetimePoints).current;
+    return {
+      id: c.id,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      phone: c.phone,
+      points: c.points,
+      permanentDiscountPercent: Number(c.permanentDiscountPercent),
+      tierLabel: tier.label,
+      tierDiscountPercent: tier.discountPercent,
+    };
+  });
 }
 
 export type CreateFlashCustomerResult =
@@ -88,6 +98,9 @@ export async function createFlashCustomer(
     },
   });
 
+  const tiers = await getLoyaltyTiers();
+  const tier = resolveTier(tiers, customer.lifetimePoints).current;
+
   return {
     success: true,
     customer: {
@@ -97,6 +110,8 @@ export async function createFlashCustomer(
       phone: customer.phone,
       points: customer.points,
       permanentDiscountPercent: Number(customer.permanentDiscountPercent),
+      tierLabel: tier.label,
+      tierDiscountPercent: tier.discountPercent,
     },
   };
 }
@@ -230,8 +245,13 @@ export async function completeSale(
       rewardRedemptionName = found.reward.name;
     }
 
+    const customerTierDiscountPercent = customer
+      ? resolveTier(await getLoyaltyTiers(), customer.lifetimePoints).current.discountPercent
+      : 0;
+
     const customerDiscountPercent =
       (customer ? Number(customer.permanentDiscountPercent) : 0) +
+      customerTierDiscountPercent +
       (customer && isBirthdayPeriod(customer.birthDate) ? BIRTHDAY_DISCOUNT_PERCENT : 0);
 
     const pricing = computeOrderPricing(

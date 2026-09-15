@@ -6,7 +6,7 @@ import { getCurrentCustomer } from "@/lib/auth-customer";
 import { withOrderNumber, creditLoyaltyPoints } from "@/lib/orders";
 import { computeOrderPricing, getEffectivePrice } from "@/lib/pricing";
 import { resolvePromoCode } from "@/lib/promo";
-import { isBirthdayPeriod, BIRTHDAY_DISCOUNT_PERCENT } from "@/lib/loyalty";
+import { isBirthdayPeriod, BIRTHDAY_DISCOUNT_PERCENT, getLoyaltyTiers, resolveTier } from "@/lib/loyalty";
 import { applyReferralBonusIfFirstOrder } from "@/lib/referral";
 
 export type CheckoutInput = { productId: string; qty: number }[];
@@ -57,8 +57,12 @@ export async function checkout(
       promo = resolution.promo;
     }
 
+    const tierDiscountPercent = resolveTier(await getLoyaltyTiers(), customer.lifetimePoints).current
+      .discountPercent;
+
     const customerDiscountPercent =
       Number(customer.permanentDiscountPercent) +
+      tierDiscountPercent +
       (isBirthdayPeriod(customer.birthDate) ? BIRTHDAY_DISCOUNT_PERCENT : 0);
 
     const pricing = computeOrderPricing(

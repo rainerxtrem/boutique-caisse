@@ -72,7 +72,8 @@ export function CustomerSearch({
             {selected.firstName} {selected.lastName}
           </p>
           <p className="text-xs text-brand-dark/70">
-            {selected.points} pts · {selected.phone}
+            {selected.points} pts · {selected.phone} · palier {selected.tierLabel}
+            {selected.tierDiscountPercent > 0 && ` (-${selected.tierDiscountPercent}%)`}
             {selected.permanentDiscountPercent > 0 &&
               ` · remise perm. ${selected.permanentDiscountPercent}%`}
           </p>
