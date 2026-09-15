@@ -4,10 +4,12 @@ import { prisma } from "@/lib/db";
 import { Badge, Button, Card, Input } from "@/components/ui";
 import { LiveSearchInput } from "@/components/live-search-input";
 import { EmptyState } from "@/components/empty-state";
+import { requirePermission } from "@/lib/permissions";
 
 export default async function FournisseursPage({
   searchParams,
 }: PageProps<"/admin/fournisseurs">) {
+  await requirePermission("fournisseurs.manage");
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q : "";
 

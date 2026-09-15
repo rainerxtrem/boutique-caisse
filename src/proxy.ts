@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySession, type StaffSessionPayload } from "@/lib/session";
 
+// Only checks that a staff session exists. Fine-grained authorization by
+// permission happens server-side in each page/action via requirePermission()
+// (src/lib/permissions.ts), since that needs a Postgres round-trip the pg
+// adapter can't make from the edge runtime this proxy runs in.
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -13,17 +17,6 @@ export async function proxy(request: NextRequest) {
     if (!payload || payload.kind !== "staff") {
       const url = request.nextUrl.clone();
       url.pathname = "/admin/connexion";
-      return NextResponse.redirect(url);
-    }
-
-    if (
-      (pathname.startsWith("/admin/utilisateurs") ||
-        pathname.startsWith("/admin/fidelite") ||
-        pathname.startsWith("/admin/audit")) &&
-      payload.role !== "ADMIN"
-    ) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/admin";
       return NextResponse.redirect(url);
     }
   }

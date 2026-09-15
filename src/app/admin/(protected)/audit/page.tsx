@@ -6,10 +6,12 @@ import { Pagination } from "@/components/pagination";
 import { EmptyState } from "@/components/empty-state";
 import { formatDate } from "@/lib/format";
 import { parsePage, paginationSkipTake, totalPages } from "@/lib/pagination";
+import { requirePermission } from "@/lib/permissions";
 
 export default async function AuditPage({
   searchParams,
 }: PageProps<"/admin/audit">) {
+  await requirePermission("audit.view");
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q : "";
   const page = parsePage(params.page);

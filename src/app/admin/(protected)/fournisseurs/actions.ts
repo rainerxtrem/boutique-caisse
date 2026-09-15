@@ -4,7 +4,7 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireStaff } from "@/lib/auth-staff";
+import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 
 const supplierSchema = z.object({
@@ -33,7 +33,7 @@ export async function createSupplier(
   _prevState: SupplierFormState,
   formData: FormData
 ): Promise<SupplierFormState> {
-  await requireStaff();
+  await requirePermission("fournisseurs.manage");
   const parsed = readSupplierForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide." };
@@ -59,7 +59,7 @@ export async function updateSupplier(
   _prevState: SupplierFormState,
   formData: FormData
 ): Promise<SupplierFormState> {
-  await requireStaff();
+  await requirePermission("fournisseurs.manage");
   const parsed = readSupplierForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide." };
@@ -83,7 +83,7 @@ export async function updateSupplier(
 }
 
 export async function deleteSupplier(supplierId: string) {
-  const session = await requireStaff();
+  const session = await requirePermission("fournisseurs.manage");
   const supplier = await prisma.supplier.findUnique({ where: { id: supplierId } });
   await prisma.product.updateMany({
     where: { supplierId },

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { Badge, Card } from "@/components/ui";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { formatDate, formatPrice } from "@/lib/format";
+import { requirePermission } from "@/lib/permissions";
 import { RefundForm } from "./refund-form";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -17,6 +18,7 @@ const STATUS_LABEL: Record<string, string> = {
 export default async function OrderDetailPage({
   params,
 }: PageProps<"/admin/commandes/[id]">) {
+  await requirePermission("commandes.view");
   const { id } = await params;
   const order = await prisma.order.findUnique({
     where: { id },

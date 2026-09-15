@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { formatDate, formatPrice } from "@/lib/format";
 import { computeVatBreakdown } from "@/lib/tax";
 import { getBaseUrl } from "@/lib/base-url";
+import { requirePermission } from "@/lib/permissions";
 import { QrCode } from "@/components/qr-code";
 import { PrintButton } from "./print-button";
 
@@ -16,6 +17,7 @@ const PAYMENT_LABEL: Record<string, string> = {
 export default async function ReceiptPage({
   params,
 }: PageProps<"/admin/caisse/recu/[number]">) {
+  await requirePermission("caisse.use");
   const { number } = await params;
   const order = await prisma.order.findUnique({
     where: { number },

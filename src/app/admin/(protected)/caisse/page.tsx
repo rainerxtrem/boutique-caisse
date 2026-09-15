@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/db";
-import { requireStaff } from "@/lib/auth-staff";
+import { requirePermission } from "@/lib/permissions";
 import { getEffectivePrice } from "@/lib/pricing";
 import { CaisseClient } from "./caisse-client";
 
 export default async function CaissePage() {
-  const session = await requireStaff();
+  const session = await requirePermission("caisse.use");
 
   const products = await prisma.product.findMany({
     where: { active: true },

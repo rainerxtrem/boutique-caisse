@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/empty-state";
 import { formatDateOnly } from "@/lib/format";
 import { getLoyaltyTiers, resolveTier } from "@/lib/loyalty";
 import { DEFAULT_PAGE_SIZE, parsePage, totalPages } from "@/lib/pagination";
+import { requirePermission } from "@/lib/permissions";
 
 const SEGMENTS = [
   { key: "tous", label: "Tous" },
@@ -18,6 +19,7 @@ const SEGMENTS = [
 export default async function ClientsPage({
   searchParams,
 }: PageProps<"/admin/clients">) {
+  await requirePermission("clients.view");
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q : "";
   const segment = typeof params.segment === "string" ? params.segment : "tous";

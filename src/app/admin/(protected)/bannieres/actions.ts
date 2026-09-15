@@ -4,7 +4,7 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireStaff } from "@/lib/auth-staff";
+import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 
 const bannerSchema = z.object({
@@ -35,7 +35,7 @@ export async function createBanner(
   _prevState: BannerFormState,
   formData: FormData
 ): Promise<BannerFormState> {
-  await requireStaff();
+  await requirePermission("bannieres.manage");
   const parsed = readBannerForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide." };
@@ -63,7 +63,7 @@ export async function updateBanner(
   _prevState: BannerFormState,
   formData: FormData
 ): Promise<BannerFormState> {
-  await requireStaff();
+  await requirePermission("bannieres.manage");
   const parsed = readBannerForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide." };
@@ -88,7 +88,7 @@ export async function updateBanner(
 }
 
 export async function deleteBanner(bannerId: string) {
-  const session = await requireStaff();
+  const session = await requirePermission("bannieres.manage");
   const banner = await prisma.banner.findUnique({ where: { id: bannerId } });
   await prisma.banner.delete({ where: { id: bannerId } });
   if (banner) {

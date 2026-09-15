@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/db";
 import { Card } from "@/components/ui";
 import { formatPrice } from "@/lib/format";
+import { requirePermission } from "@/lib/permissions";
 import { BestSellersChart, RevenueChart } from "./stats-charts";
 
 export default async function StatistiquesPage() {
+  await requirePermission("statistiques.view");
   const since = new Date();
   since.setDate(since.getDate() - 13);
   since.setHours(0, 0, 0, 0);

@@ -9,11 +9,6 @@ datasource db {
   provider = "postgresql"
 }
 
-enum StaffRole {
-  ADMIN
-  VENDEUR
-}
-
 enum OrderSource {
   WEB
   CAISSE
@@ -40,18 +35,46 @@ enum PromoType {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  username     String    @unique
+  id           String   @id @default(cuid())
+  username     String   @unique
   passwordHash String
   name         String
-  role         StaffRole @default(VENDEUR)
-  createdAt    DateTime  @default(now())
+  createdAt    DateTime @default(now())
+
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
 
   orders           Order[]
   priceChanges     PriceHistory[]
   refunds          Refund[]
   cashClosings     CashClosing[]
   fulfilledRewards RewardRedemption[]
+}
+
+model Permission {
+  key      String @id
+  label    String
+  category String
+
+  roles RolePermission[]
+}
+
+model Role {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  users       User[]
+  permissions RolePermission[]
+}
+
+model RolePermission {
+  roleId        String
+  role          Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionKey String
+  permission    Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+
+  @@id([roleId, permissionKey])
 }
 
 model Customer {

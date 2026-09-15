@@ -4,7 +4,7 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireStaff } from "@/lib/auth-staff";
+import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 
 const promoSchema = z.object({
@@ -37,7 +37,7 @@ export async function createPromoCode(
   _prevState: PromoFormState,
   formData: FormData
 ): Promise<PromoFormState> {
-  await requireStaff();
+  await requirePermission("promotions.manage");
   const parsed = readPromoForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide." };
@@ -65,13 +65,13 @@ export async function createPromoCode(
 }
 
 export async function togglePromoCode(promoId: string, active: boolean) {
-  await requireStaff();
+  await requirePermission("promotions.manage");
   await prisma.promoCode.update({ where: { id: promoId }, data: { active } });
   revalidatePath("/admin/promotions");
 }
 
 export async function deletePromoCode(promoId: string) {
-  const session = await requireStaff();
+  const session = await requirePermission("promotions.manage");
   const promo = await prisma.promoCode.findUnique({ where: { id: promoId } });
   await prisma.promoCode.delete({ where: { id: promoId } });
   if (promo) {

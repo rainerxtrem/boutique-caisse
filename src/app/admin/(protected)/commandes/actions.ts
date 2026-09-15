@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireStaff } from "@/lib/auth-staff";
+import { requirePermission } from "@/lib/permissions";
 import { POINTS_PER_EURO } from "@/lib/orders";
 import { logAudit } from "@/lib/audit";
 
@@ -10,7 +10,7 @@ export async function updateOrderStatus(
   orderId: string,
   status: "PENDING" | "READY" | "COMPLETED" | "CANCELLED"
 ) {
-  const session = await requireStaff();
+  const session = await requirePermission("commandes.manage");
 
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) throw new Error("Commande introuvable.");
@@ -65,7 +65,7 @@ export async function processRefund(
   lines: RefundLine[],
   reason: string
 ) {
-  const session = await requireStaff();
+  const session = await requirePermission("commandes.refund");
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },

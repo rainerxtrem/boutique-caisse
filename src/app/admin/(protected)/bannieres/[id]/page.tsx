@@ -3,12 +3,14 @@ import { Breadcrumb } from "@/components/breadcrumb";
 import { ConfirmSubmitButton } from "@/components/confirm-button";
 import { Card } from "@/components/ui";
 import { prisma } from "@/lib/db";
+import { requirePermission } from "@/lib/permissions";
 import { deleteBanner, updateBanner } from "../actions";
 import { BannerForm } from "../banner-form";
 
 export default async function BannerDetailPage({
   params,
 }: PageProps<"/admin/bannieres/[id]">) {
+  await requirePermission("bannieres.manage");
   const { id } = await params;
   const banner = await prisma.banner.findUnique({ where: { id } });
   if (!banner) notFound();

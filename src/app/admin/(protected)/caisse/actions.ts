@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db";
-import { requireStaff } from "@/lib/auth-staff";
+import { requirePermission } from "@/lib/permissions";
 import { withOrderNumber, creditLoyaltyPoints } from "@/lib/orders";
 import { computeOrderPricing, getEffectivePrice } from "@/lib/pricing";
 import { resolvePromoCode } from "@/lib/promo";
@@ -9,6 +9,7 @@ import { isBirthdayPeriod, BIRTHDAY_DISCOUNT_PERCENT } from "@/lib/loyalty";
 import { applyReferralBonusIfFirstOrder, generateUniqueReferralCode } from "@/lib/referral";
 
 export async function findCustomerByPhone(phone: string) {
+  await requirePermission("caisse.use");
   const customer = await prisma.customer.findUnique({
     where: { phone: phone.trim() },
   });
@@ -25,6 +26,7 @@ export type CustomerSearchResult = {
 };
 
 export async function searchCustomers(query: string): Promise<CustomerSearchResult[]> {
+  await requirePermission("caisse.use");
   const q = query.trim();
   if (q.length < 2) return [];
 
@@ -59,7 +61,7 @@ export async function createFlashCustomer(
   lastName: string,
   phone: string
 ): Promise<CreateFlashCustomerResult> {
-  await requireStaff();
+  await requirePermission("caisse.use");
 
   const cleanPhone = phone.trim();
   if (!cleanPhone || cleanPhone.length < 6) {
@@ -98,6 +100,7 @@ export async function createFlashCustomer(
 }
 
 export async function previewPromoCode(code: string, subtotal: number) {
+  await requirePermission("caisse.use");
   const resolution = await resolvePromoCode(code, subtotal);
   if (!resolution.ok) return { ok: false as const, error: resolution.error };
   return { ok: true as const, promo: resolution.promo };
@@ -128,7 +131,7 @@ export async function completeSale(
   payment: { method: PaymentMethod; amountPaid: number | null },
   registerLabel: string | null
 ): Promise<CompleteSaleResult> {
-  const session = await requireStaff();
+  const session = await requirePermission("caisse.use");
 
   if (!lines.length) {
     return { success: false, error: "Le ticket est vide." };

@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/db";
 import { Button, Card, Input, Textarea } from "@/components/ui";
 import { ConfirmSubmitButton } from "@/components/confirm-button";
+import { requirePermission } from "@/lib/permissions";
 import { deleteTier, updateTier } from "./actions";
 import { TierCreateForm } from "./tier-create-form";
 
 export default async function FidelitePaliersPage() {
+  await requirePermission("fidelite.manage_tiers");
   const tiers = await prisma.loyaltyTier.findMany({ orderBy: { minPoints: "asc" } });
 
   return (

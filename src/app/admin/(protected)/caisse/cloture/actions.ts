@@ -3,10 +3,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireStaff } from "@/lib/auth-staff";
+import { requirePermission } from "@/lib/permissions";
 
 export async function createCashClosing(formData: FormData) {
-  const session = await requireStaff();
+  const session = await requirePermission("caisse.cloture");
 
   const periodStart = new Date(String(formData.get("periodStart")));
   const periodEnd = new Date(String(formData.get("periodEnd")));

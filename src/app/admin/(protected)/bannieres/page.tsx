@@ -2,10 +2,12 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/empty-state";
+import { requirePermission } from "@/lib/permissions";
 import { BannerForm } from "./banner-form";
 import { createBanner } from "./actions";
 
 export default async function BanneresPage() {
+  await requirePermission("bannieres.manage");
   const banners = await prisma.banner.findMany({ orderBy: { order: "asc" } });
 
   return (

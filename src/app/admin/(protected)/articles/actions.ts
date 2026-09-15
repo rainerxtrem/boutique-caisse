@@ -4,7 +4,7 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireStaff } from "@/lib/auth-staff";
+import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 
 function slugify(value: string) {
@@ -64,7 +64,7 @@ export async function createProduct(
   _prevState: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
-  await requireStaff();
+  await requirePermission("articles.manage");
 
   const parsed = readProductForm(formData);
   if (!parsed.success) {
@@ -122,7 +122,7 @@ export async function updateProduct(
   _prevState: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
-  const session = await requireStaff();
+  const session = await requirePermission("articles.manage");
 
   const parsed = readProductForm(formData);
   if (!parsed.success) {
@@ -210,7 +210,7 @@ async function syncProductImages(productId: string, imageUrlsRaw: string) {
 }
 
 export async function duplicateProduct(productId: string) {
-  const session = await requireStaff();
+  const session = await requirePermission("articles.manage");
   const original = await prisma.product.findUnique({ where: { id: productId } });
   if (!original) redirect("/admin/articles");
 
@@ -260,7 +260,7 @@ export async function duplicateProduct(productId: string) {
 }
 
 export async function deleteProduct(productId: string) {
-  const session = await requireStaff();
+  const session = await requirePermission("articles.manage");
   const product = await prisma.product.update({
     where: { id: productId },
     data: { active: false },
@@ -278,7 +278,7 @@ export async function deleteProduct(productId: string) {
 }
 
 export async function updateProductStock(productId: string, formData: FormData) {
-  await requireStaff();
+  await requirePermission("articles.manage");
   const stock = Number(formData.get("stock"));
   if (!Number.isFinite(stock) || stock < 0) return;
   await prisma.product.update({ where: { id: productId }, data: { stock: Math.floor(stock) } });
@@ -286,7 +286,7 @@ export async function updateProductStock(productId: string, formData: FormData) 
 }
 
 export async function createCategory(formData: FormData) {
-  await requireStaff();
+  await requirePermission("articles.manage");
   const name = String(formData.get("categoryName") ?? "").trim();
   if (!name) return;
 

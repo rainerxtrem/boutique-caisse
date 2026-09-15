@@ -7,7 +7,6 @@ const secret = new TextEncoder().encode(
 export type StaffSessionPayload = {
   kind: "staff";
   userId: string;
-  role: "ADMIN" | "VENDEUR";
   name: string;
 };
 

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { requirePermission } from "@/lib/permissions";
 import { createProduct } from "../actions";
 import { ProductForm } from "../product-form";
 
 export default async function NouvelArticlePage() {
+  await requirePermission("articles.manage");
   const [categories, suppliers, relatedOptions] = await Promise.all([
     prisma.category.findMany({ orderBy: { name: "asc" } }),
     prisma.supplier.findMany({ orderBy: { name: "asc" } }),

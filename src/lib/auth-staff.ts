@@ -10,13 +10,9 @@ import {
 
 const COOKIE_NAME = "staff_session";
 
-export async function createStaffSession(user: {
-  id: string;
-  role: "ADMIN" | "VENDEUR";
-  name: string;
-}) {
+export async function createStaffSession(user: { id: string; name: string }) {
   const token = await signSession(
-    { kind: "staff", userId: user.id, role: user.role, name: user.name },
+    { kind: "staff", userId: user.id, name: user.name },
     "12h"
   );
   const store = await cookies();
@@ -46,12 +42,6 @@ export async function getStaffSession() {
 export async function requireStaff() {
   const session = await getStaffSession();
   if (!session) redirect("/admin/connexion");
-  return session;
-}
-
-export async function requireAdmin() {
-  const session = await requireStaff();
-  if (session.role !== "ADMIN") redirect("/admin");
   return session;
 }
 

@@ -3,8 +3,10 @@ import { prisma } from "@/lib/db";
 import { Badge, Card } from "@/components/ui";
 import { Sparkline } from "@/components/sparkline";
 import { formatPrice } from "@/lib/format";
+import { requirePermission } from "@/lib/permissions";
 
 export default async function AdminDashboardPage() {
+  await requirePermission("dashboard.view");
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 

@@ -7,12 +7,14 @@ import { Pagination } from "@/components/pagination";
 import { EmptyState } from "@/components/empty-state";
 import { formatPrice } from "@/lib/format";
 import { parsePage, paginationSkipTake, totalPages } from "@/lib/pagination";
+import { requirePermission } from "@/lib/permissions";
 import { createCategory } from "./actions";
 import { StockQuickEdit } from "./stock-quick-edit";
 
 export default async function ArticlesPage({
   searchParams,
 }: PageProps<"/admin/articles">) {
+  await requirePermission("articles.view");
   const params = await searchParams;
   const q = typeof params.q === "string" ? params.q : "";
   const page = parsePage(params.page);

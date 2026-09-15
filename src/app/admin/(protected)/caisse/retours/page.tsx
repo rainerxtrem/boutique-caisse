@@ -2,10 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Button, Card, Input, Label } from "@/components/ui";
+import { requirePermission } from "@/lib/permissions";
 
 export default async function RetoursCaissePage({
   searchParams,
 }: PageProps<"/admin/caisse/retours">) {
+  await requirePermission("caisse.retours");
   const params = await searchParams;
   const numero = typeof params.numero === "string" ? params.numero.trim() : "";
 

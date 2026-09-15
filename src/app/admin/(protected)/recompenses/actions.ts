@@ -4,7 +4,7 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireStaff } from "@/lib/auth-staff";
+import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 
 const rewardSchema = z.object({
@@ -31,7 +31,7 @@ export async function createReward(
   _prevState: RewardFormState,
   formData: FormData
 ): Promise<RewardFormState> {
-  await requireStaff();
+  await requirePermission("recompenses.manage");
   const parsed = readRewardForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide." };
@@ -57,7 +57,7 @@ export async function updateReward(
   _prevState: RewardFormState,
   formData: FormData
 ): Promise<RewardFormState> {
-  await requireStaff();
+  await requirePermission("recompenses.manage");
   const parsed = readRewardForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Formulaire invalide." };
@@ -80,7 +80,7 @@ export async function updateReward(
 }
 
 export async function deleteReward(rewardId: string) {
-  const session = await requireStaff();
+  const session = await requirePermission("recompenses.manage");
   const reward = await prisma.reward.findUnique({ where: { id: rewardId } });
   await prisma.reward.delete({ where: { id: rewardId } });
   if (reward) {
@@ -99,7 +99,7 @@ export async function deleteReward(rewardId: string) {
 }
 
 export async function fulfillRedemption(code: string) {
-  const session = await requireStaff();
+  const session = await requirePermission("recompenses.fulfill");
   const redemption = await prisma.rewardRedemption.findUnique({
     where: { code: code.trim().toUpperCase() },
     include: { reward: true, customer: true },

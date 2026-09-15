@@ -21,6 +21,7 @@ const MESSAGES: Record<string, string> = {
   "promo-created": "Code promo créé.",
   "promo-deleted": "Code promo supprimé.",
   "user-created": "Utilisateur créé.",
+  "user-updated": "Utilisateur enregistré.",
   "user-deleted": "Utilisateur supprimé.",
   "tier-deleted": "Palier supprimé.",
   "order-cancelled": "Commande annulée.",

@@ -3,12 +3,14 @@ import { Breadcrumb } from "@/components/breadcrumb";
 import { ConfirmSubmitButton } from "@/components/confirm-button";
 import { Card } from "@/components/ui";
 import { prisma } from "@/lib/db";
+import { requirePermission } from "@/lib/permissions";
 import { deleteReward, updateReward } from "../actions";
 import { RewardForm } from "../reward-form";
 
 export default async function RewardDetailPage({
   params,
 }: PageProps<"/admin/recompenses/[id]">) {
+  await requirePermission("recompenses.manage");
   const { id } = await params;
   const reward = await prisma.reward.findUnique({ where: { id } });
   if (!reward) notFound();

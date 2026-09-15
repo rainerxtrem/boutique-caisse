@@ -9,16 +9,23 @@ import { formatPrice } from "@/lib/format";
 export function CartDrawer() {
   const { items, isDrawerOpen, closeDrawer, setQty, removeItem, totalPrice } = useCart();
 
-  if (!isDrawerOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-40">
+    <div
+      className={`fixed inset-0 z-40 ${isDrawerOpen ? "" : "pointer-events-none"}`}
+      aria-hidden={!isDrawerOpen}
+    >
       <div
-        className="absolute inset-0 bg-black/30"
+        className={`absolute inset-0 bg-black/30 transition-opacity duration-300 ${
+          isDrawerOpen ? "opacity-100" : "opacity-0"
+        }`}
         onClick={closeDrawer}
         aria-hidden="true"
       />
-      <div className="absolute right-0 top-0 flex h-full w-full max-w-sm flex-col bg-surface shadow-xl">
+      <div
+        className={`absolute right-0 top-0 flex h-full w-full max-w-sm flex-col bg-surface shadow-xl transition-transform duration-300 ease-out ${
+          isDrawerOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
         <div className="flex items-center justify-between border-b border-border p-4">
           <h2 className="font-semibold">Mon panier</h2>
           <button

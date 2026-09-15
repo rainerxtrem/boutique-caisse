@@ -8,6 +8,7 @@ import { Pagination } from "@/components/pagination";
 import { EmptyState } from "@/components/empty-state";
 import { formatDate, formatPrice } from "@/lib/format";
 import { parsePage, paginationSkipTake, totalPages } from "@/lib/pagination";
+import { requirePermission } from "@/lib/permissions";
 import { updateOrderStatus } from "./actions";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -33,6 +34,7 @@ const FILTERS = ["Tout", "PENDING", "READY", "COMPLETED", "CANCELLED"] as const;
 export default async function CommandesPage({
   searchParams,
 }: PageProps<"/admin/commandes">) {
+  await requirePermission("commandes.view");
   const params = await searchParams;
   const status = typeof params.statut === "string" ? params.statut : "Tout";
   const q = typeof params.q === "string" ? params.q : "";

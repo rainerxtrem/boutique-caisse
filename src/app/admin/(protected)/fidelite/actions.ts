@@ -4,7 +4,7 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth-staff";
+import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 
 const tierSchema = z.object({
@@ -19,7 +19,7 @@ export async function createTier(
   _prevState: TierFormState,
   formData: FormData
 ): Promise<TierFormState> {
-  await requireAdmin();
+  await requirePermission("fidelite.manage_tiers");
 
   const parsed = tierSchema.safeParse({
     label: formData.get("label"),
@@ -37,7 +37,7 @@ export async function createTier(
 }
 
 export async function updateTier(tierId: string, formData: FormData) {
-  await requireAdmin();
+  await requirePermission("fidelite.manage_tiers");
 
   const parsed = tierSchema.safeParse({
     label: formData.get("label"),
@@ -53,7 +53,7 @@ export async function updateTier(tierId: string, formData: FormData) {
 }
 
 export async function deleteTier(tierId: string) {
-  const session = await requireAdmin();
+  const session = await requirePermission("fidelite.manage_tiers");
   const tier = await prisma.loyaltyTier.findUnique({ where: { id: tierId } });
   await prisma.loyaltyTier.delete({ where: { id: tierId } });
   if (tier) {

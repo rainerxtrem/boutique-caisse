@@ -3,11 +3,13 @@ import { prisma } from "@/lib/db";
 import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/empty-state";
 import { formatDate } from "@/lib/format";
+import { requireAnyPermission } from "@/lib/permissions";
 import { RewardForm } from "./reward-form";
 import { FulfillLookup } from "./fulfill-lookup";
 import { createReward } from "./actions";
 
 export default async function RecompensesPage() {
+  await requireAnyPermission(["recompenses.manage", "recompenses.fulfill"]);
   const [rewards, pendingRedemptions] = await Promise.all([
     prisma.reward.findMany({ orderBy: { pointsCost: "asc" } }),
     prisma.rewardRedemption.findMany({

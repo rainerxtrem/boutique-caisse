@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireStaff } from "@/lib/auth-staff";
+import { requirePermission } from "@/lib/permissions";
 import { computeVatBreakdown } from "@/lib/tax";
 
 function csvEscape(value: string) {
@@ -11,7 +11,7 @@ function csvEscape(value: string) {
 }
 
 export async function GET() {
-  await requireStaff();
+  await requirePermission("statistiques.export");
 
   const orders = await prisma.order.findMany({
     include: {

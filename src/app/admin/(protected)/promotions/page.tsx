@@ -3,10 +3,12 @@ import { Badge, Button, Card } from "@/components/ui";
 import { ConfirmSubmitButton } from "@/components/confirm-button";
 import { EmptyState } from "@/components/empty-state";
 import { formatDateOnly, formatPrice } from "@/lib/format";
+import { requirePermission } from "@/lib/permissions";
 import { deletePromoCode, togglePromoCode } from "./actions";
 import { PromoForm } from "./promo-form";
 
 export default async function PromotionsPage() {
+  await requirePermission("promotions.manage");
   const promos = await prisma.promoCode.findMany({ orderBy: { createdAt: "desc" } });
 
   return (

@@ -1,17 +1,10 @@
-"use client";
-
-import { useActionState } from "react";
 import Link from "next/link";
-import { Button, Card, FieldError, Input, Label, Select } from "@/components/ui";
-import { createStaffUser, type UserFormState } from "../actions";
+import { prisma } from "@/lib/db";
+import { createStaffUser } from "../actions";
+import { UserForm } from "../user-form";
 
-const initialState: UserFormState = {};
-
-export default function NouvelUtilisateurPage() {
-  const [state, formAction, pending] = useActionState(
-    createStaffUser,
-    initialState
-  );
+export default async function NouvelUtilisateurPage() {
+  const roles = await prisma.role.findMany({ orderBy: { name: "asc" } });
 
   return (
     <div className="flex flex-col gap-6">
@@ -25,33 +18,12 @@ export default function NouvelUtilisateurPage() {
         <h1 className="mt-1 text-2xl font-semibold">Nouvel utilisateur</h1>
       </div>
 
-      <Card className="max-w-md p-6">
-        <form action={formAction} className="flex flex-col gap-4">
-          <div>
-            <Label htmlFor="name">Nom complet</Label>
-            <Input id="name" name="name" required />
-          </div>
-          <div>
-            <Label htmlFor="username">Identifiant</Label>
-            <Input id="username" name="username" required />
-          </div>
-          <div>
-            <Label htmlFor="password">Mot de passe</Label>
-            <Input id="password" name="password" type="password" required />
-          </div>
-          <div>
-            <Label htmlFor="role">Rôle</Label>
-            <Select id="role" name="role" defaultValue="VENDEUR">
-              <option value="VENDEUR">Vendeur</option>
-              <option value="ADMIN">Administrateur</option>
-            </Select>
-          </div>
-          <FieldError>{state.error}</FieldError>
-          <Button type="submit" disabled={pending}>
-            {pending ? "Création..." : "Créer l'utilisateur"}
-          </Button>
-        </form>
-      </Card>
+      <UserForm
+        action={createStaffUser}
+        roles={roles}
+        submitLabel="Créer l'utilisateur"
+        passwordRequired
+      />
     </div>
   );
 }

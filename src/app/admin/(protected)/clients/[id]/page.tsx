@@ -5,12 +5,14 @@ import { Breadcrumb } from "@/components/breadcrumb";
 import { ConfirmSubmitButton } from "@/components/confirm-button";
 import { formatDate, formatDateOnly, formatPrice } from "@/lib/format";
 import { getLoyaltyTier } from "@/lib/loyalty";
+import { requirePermission } from "@/lib/permissions";
 import { deleteCustomer, updateCustomer } from "../actions";
 import { CustomerForm } from "../client-form";
 
 export default async function ClientDetailPage({
   params,
 }: PageProps<"/admin/clients/[id]">) {
+  await requirePermission("clients.view");
   const { id } = await params;
   const customer = await prisma.customer.findUnique({
     where: { id },

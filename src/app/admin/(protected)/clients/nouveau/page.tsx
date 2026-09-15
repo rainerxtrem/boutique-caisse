@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { requirePermission } from "@/lib/permissions";
 import { createCustomer } from "../actions";
 import { CustomerForm } from "../client-form";
 
-export default function NouveauClientPage() {
+export default async function NouveauClientPage() {
+  await requirePermission("clients.manage");
   return (
     <div className="flex flex-col gap-6">
       <div>

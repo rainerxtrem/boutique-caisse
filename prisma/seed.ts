@@ -129,7 +129,7 @@ async function main() {
     create: {
       username: "admin",
       name: "Administrateur",
-      role: "ADMIN",
+      roleId: "role-admin",
       passwordHash: await bcrypt.hash(adminPassword, 10),
     },
   });
@@ -140,7 +140,7 @@ async function main() {
     create: {
       username: "vendeur",
       name: "Vendeur Caisse",
-      role: "VENDEUR",
+      roleId: "role-vendeur",
       passwordHash: await bcrypt.hash(vendeurPassword, 10),
     },
   });

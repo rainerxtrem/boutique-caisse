@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { requirePermission } from "@/lib/permissions";
 import { createSupplier } from "../actions";
 import { SupplierForm } from "../supplier-form";
 
-export default function NouveauFournisseurPage() {
+export default async function NouveauFournisseurPage() {
+  await requirePermission("fournisseurs.manage");
   return (
     <div className="flex flex-col gap-6">
       <div>

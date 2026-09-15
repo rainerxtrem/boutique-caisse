@@ -4,7 +4,7 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireStaff } from "@/lib/auth-staff";
+import { requirePermission } from "@/lib/permissions";
 import { generateUniqueReferralCode } from "@/lib/referral";
 import { logAudit } from "@/lib/audit";
 
@@ -21,7 +21,7 @@ export async function createCustomer(
   _prevState: CustomerFormState,
   formData: FormData
 ): Promise<CustomerFormState> {
-  await requireStaff();
+  await requirePermission("clients.manage");
 
   const parsed = customerSchema.safeParse({
     firstName: formData.get("firstName"),
@@ -78,7 +78,7 @@ export async function updateCustomer(
   _prevState: CustomerFormState,
   formData: FormData
 ): Promise<CustomerFormState> {
-  const session = await requireStaff();
+  const session = await requirePermission("clients.manage");
 
   const parsed = customerSchema.safeParse({
     firstName: formData.get("firstName"),
@@ -135,7 +135,7 @@ export async function updateCustomer(
 }
 
 export async function deleteCustomer(customerId: string) {
-  const session = await requireStaff();
+  const session = await requirePermission("clients.manage");
   const customer = await prisma.customer.findUnique({ where: { id: customerId } });
   await prisma.customer.delete({ where: { id: customerId } });
   if (customer) {

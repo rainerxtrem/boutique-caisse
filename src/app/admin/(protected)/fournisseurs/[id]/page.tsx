@@ -4,12 +4,14 @@ import { prisma } from "@/lib/db";
 import { Card } from "@/components/ui";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { ConfirmSubmitButton } from "@/components/confirm-button";
+import { requirePermission } from "@/lib/permissions";
 import { deleteSupplier, updateSupplier } from "../actions";
 import { SupplierForm } from "../supplier-form";
 
 export default async function FournisseurDetailPage({
   params,
 }: PageProps<"/admin/fournisseurs/[id]">) {
+  await requirePermission("fournisseurs.manage");
   const { id } = await params;
   const supplier = await prisma.supplier.findUnique({
     where: { id },

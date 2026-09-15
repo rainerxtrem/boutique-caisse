@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/db";
 import { Badge, Button, Card, Input, Label, Textarea } from "@/components/ui";
 import { formatDate, formatPrice } from "@/lib/format";
+import { requirePermission } from "@/lib/permissions";
 import { createCashClosing } from "./actions";
 
 export default async function ClotureCaissePage() {
+  await requirePermission("caisse.cloture");
   const lastClosing = await prisma.cashClosing.findFirst({
     orderBy: { periodEnd: "desc" },
   });

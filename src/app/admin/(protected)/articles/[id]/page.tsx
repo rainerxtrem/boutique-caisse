@@ -4,12 +4,14 @@ import { Badge, Button, Card } from "@/components/ui";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { ConfirmSubmitButton } from "@/components/confirm-button";
 import { formatDate, formatPrice } from "@/lib/format";
+import { requirePermission } from "@/lib/permissions";
 import { deleteProduct, duplicateProduct, updateProduct } from "../actions";
 import { ProductForm } from "../product-form";
 
 export default async function ArticleDetailPage({
   params,
 }: PageProps<"/admin/articles/[id]">) {
+  await requirePermission("articles.view");
   const { id } = await params;
   const [product, categories, suppliers, relatedOptions, relations, priceHistory, images] =
     await Promise.all([

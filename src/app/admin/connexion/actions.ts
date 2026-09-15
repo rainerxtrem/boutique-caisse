@@ -28,6 +28,6 @@ export async function loginStaff(
     return { error: "Identifiants incorrects." };
   }
 
-  await createStaffSession({ id: user.id, role: user.role, name: user.name });
+  await createStaffSession({ id: user.id, name: user.name });
   redirect("/admin");
 }
