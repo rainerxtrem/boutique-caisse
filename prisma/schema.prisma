@@ -258,6 +258,9 @@ model Order {
   promoCode     PromoCode? @relation(fields: [promoCodeId], references: [id])
   promoDiscount Decimal    @default(0) @db.Decimal(10, 2)
 
+  rewardDiscount    Decimal            @default(0) @db.Decimal(10, 2)
+  rewardRedemptions RewardRedemption[]
+
   pickupSlot DateTime?
 
   customerId String?
@@ -343,14 +346,22 @@ enum RedemptionStatus {
   FULFILLED
 }
 
+enum RewardType {
+  PHYSICAL
+  PERCENT
+  FIXED
+}
+
 model Reward {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   name        String
   description String?
   pointsCost  Int
   imageUrl    String?
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  active      Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  type        RewardType @default(PHYSICAL)
+  value       Decimal?   @db.Decimal(10, 2)
 
   redemptions RewardRedemption[]
 }
@@ -368,4 +379,6 @@ model RewardRedemption {
   fulfilledAt   DateTime?
   fulfilledById String?
   fulfilledBy   User?            @relation(fields: [fulfilledById], references: [id])
+  orderId       String?
+  order         Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
 }

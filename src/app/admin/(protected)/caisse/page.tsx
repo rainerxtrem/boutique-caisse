@@ -28,6 +28,7 @@ export default async function CaissePage() {
         name: p.name,
         price: getEffectivePrice(p),
         stock: p.stock,
+        imageUrl: p.imageUrl,
         categoryName: p.category?.name ?? null,
         temporarilyUnavailable: p.temporarilyUnavailable,
         relatedProducts: p.relatedFrom

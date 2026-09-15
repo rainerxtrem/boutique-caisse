@@ -6,7 +6,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui";
 import { formatPrice } from "@/lib/format";
 import { computeOrderPricing } from "@/lib/pricing";
-import { completeSale, previewPromoCode, type PaymentMethod } from "./actions";
+import {
+  completeSale,
+  getCustomerRewardRedemptions,
+  previewPromoCode,
+  type CustomerRewardRedemption,
+  type PaymentMethod,
+} from "./actions";
 import { CustomerSearch, type CaisseCustomer } from "./customer-search";
 
 type RelatedProduct = { id: string; name: string; price: number };
@@ -16,6 +22,7 @@ type Product = {
   name: string;
   price: number;
   stock: number;
+  imageUrl: string | null;
   categoryName: string | null;
   temporarilyUnavailable: boolean;
   relatedProducts: RelatedProduct[];
@@ -30,6 +37,12 @@ type TicketLine = {
 };
 
 const REGISTER_STORAGE_KEY = "caisse_register_label";
+
+const PAYMENT_OPTIONS: { method: PaymentMethod; label: string; icon: string }[] = [
+  { method: "CARD", label: "Carte", icon: "▭" },
+  { method: "CASH", label: "Espèces", icon: "●" },
+  { method: "MIXED", label: "Mixte", icon: "◐" },
+];
 
 export function CaisseClient({
   products,
@@ -54,6 +67,10 @@ export function CaisseClient({
   const [promo, setPromo] = useState<{ code: string; type: "PERCENT" | "FIXED"; value: number } | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [checkingPromo, startPromoTransition] = useTransition();
+
+  const [availableRewards, setAvailableRewards] = useState<CustomerRewardRedemption[]>([]);
+  const [selectedRewardId, setSelectedRewardId] = useState<string | null>(null);
+  const [, startRewardsTransition] = useTransition();
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CARD");
   const [amountReceived, setAmountReceived] = useState<string>("");
@@ -81,6 +98,19 @@ export function CaisseClient({
     }
   }, [registerLabel]);
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets stale reward selection whenever the ticket's customer changes
+    setSelectedRewardId(null);
+    if (!customer) {
+      setAvailableRewards([]);
+      return;
+    }
+    startRewardsTransition(async () => {
+      const rewards = await getCustomerRewardRedemptions(customer.id);
+      setAvailableRewards(rewards);
+    });
+  }, [customer]);
+
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       const matchesCategory =
@@ -93,6 +123,11 @@ export function CaisseClient({
   const customerDiscountPercent =
     (customer?.permanentDiscountPercent ?? 0);
 
+  const selectedReward = useMemo(
+    () => availableRewards.find((r) => r.id === selectedRewardId) ?? null,
+    [availableRewards, selectedRewardId]
+  );
+
   const pricing = useMemo(
     () =>
       computeOrderPricing(
@@ -104,10 +139,11 @@ export function CaisseClient({
         {
           promoCode: promo,
           customerDiscountPercent,
+          rewardDiscount: selectedReward ? { type: selectedReward.type, value: selectedReward.value } : null,
           globalDiscountPercent: globalDiscount,
         }
       ),
-    [lines, promo, customerDiscountPercent, globalDiscount]
+    [lines, promo, customerDiscountPercent, selectedReward, globalDiscount]
   );
 
   const receivedAmount = Number(amountReceived) || 0;
@@ -138,32 +174,46 @@ export function CaisseClient({
     setSuggestion(product.relatedProducts.length > 0 ? product.relatedProducts : []);
   }
 
-  function updateSelectedQty(delta: number) {
-    if (selectedIndex === null) return;
+  function updateQtyAt(index: number, delta: number) {
     setLines((prev) => {
       const next = [...prev];
-      const line = next[selectedIndex];
+      const line = next[index];
       if (!line) return prev;
-      next[selectedIndex] = { ...line, qty: Math.max(1, line.qty + delta) };
+      next[index] = { ...line, qty: Math.max(1, line.qty + delta) };
       return next;
     });
+  }
+
+  function updateDiscountAt(index: number, value: number) {
+    setLines((prev) => {
+      const next = [...prev];
+      const line = next[index];
+      if (!line) return prev;
+      next[index] = { ...line, discountPercent: Math.min(100, Math.max(0, value)) };
+      return next;
+    });
+  }
+
+  function removeLineAt(index: number) {
+    setLines((prev) => prev.filter((_, i) => i !== index));
+    setSelectedIndex((prev) =>
+      prev === null ? null : prev === index ? null : prev > index ? prev - 1 : prev
+    );
+  }
+
+  function updateSelectedQty(delta: number) {
+    if (selectedIndex === null) return;
+    updateQtyAt(selectedIndex, delta);
   }
 
   function updateSelectedDiscount(value: number) {
     if (selectedIndex === null) return;
-    setLines((prev) => {
-      const next = [...prev];
-      const line = next[selectedIndex];
-      if (!line) return prev;
-      next[selectedIndex] = { ...line, discountPercent: Math.min(100, Math.max(0, value)) };
-      return next;
-    });
+    updateDiscountAt(selectedIndex, value);
   }
 
   function removeSelectedLine() {
     if (selectedIndex === null) return;
-    setLines((prev) => prev.filter((_, i) => i !== selectedIndex));
-    setSelectedIndex(null);
+    removeLineAt(selectedIndex);
   }
 
   function clearTicket() {
@@ -177,6 +227,8 @@ export function CaisseClient({
     setPromoError(null);
     setAmountReceived("");
     setSuggestion([]);
+    setSelectedRewardId(null);
+    setAvailableRewards([]);
   }
 
   function handleCheckPromo() {
@@ -216,7 +268,8 @@ export function CaisseClient({
           method: paymentMethod,
           amountPaid: paymentMethod === "CARD" ? pricing.total : receivedAmount,
         },
-        registerLabel || null
+        registerLabel || null,
+        selectedRewardId
       );
       if (!result.success) {
         setSaleError(result.error);
@@ -257,45 +310,60 @@ export function CaisseClient({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIndex, lines, pricing.total, paymentMethod, receivedAmount, customer, promo, globalDiscount, registerLabel]);
+  }, [selectedIndex, lines, pricing.total, paymentMethod, receivedAmount, customer, promo, globalDiscount, registerLabel, selectedRewardId]);
 
   const selectedLine = selectedIndex !== null ? lines[selectedIndex] : null;
 
   return (
-    <div className="grid h-[calc(100vh-6rem)] grid-cols-1 gap-4 lg:grid-cols-[1fr_420px]">
+    <div className="grid h-[calc(100vh-6rem)] grid-cols-1 gap-4 lg:grid-cols-[1fr_440px]">
       {/* Products */}
-      <div className="flex flex-col gap-3 overflow-hidden rounded-xl border border-border bg-surface p-4">
+      <div className="flex flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-surface p-4">
         <div className="flex items-center gap-2">
-          <input
-            ref={searchInputRef}
-            type="search"
-            placeholder="Rechercher un article... (F2)"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-brand focus:ring-2 focus:ring-brand/20"
-          />
+          <div className="relative flex-1">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
+              ⌕
+            </span>
+            <input
+              ref={searchInputRef}
+              type="search"
+              placeholder="Rechercher un article... (F2)"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-lg border border-border bg-white py-2.5 pl-9 pr-3 text-sm focus:border-brand focus:ring-2 focus:ring-brand/20"
+            />
+          </div>
           <input
             type="text"
             value={registerLabel}
             onChange={(e) => setRegisterLabel(e.target.value)}
             title="Nom du poste de caisse"
-            className="w-28 shrink-0 rounded-lg border border-border bg-white px-2 py-2 text-xs text-muted focus:border-brand focus:ring-2 focus:ring-brand/20"
+            className="w-28 shrink-0 rounded-lg border border-border bg-white px-2 py-2.5 text-xs font-medium text-muted focus:border-brand focus:ring-2 focus:ring-brand/20"
           />
           <Link
             href="/admin/caisse/retours"
-            className="shrink-0 rounded-lg border border-border bg-white px-3 py-2 text-xs font-medium text-muted hover:bg-gray-50"
+            className="shrink-0 rounded-lg border border-border bg-white px-3 py-2.5 text-xs font-medium text-muted hover:bg-gray-50"
           >
-            Retours
+            ↩ Retours
           </Link>
         </div>
         <div className="flex flex-wrap gap-2">
-          {["Tout", ...categories].map((cat) => (
+          <button
+            onClick={() => setActiveCategory("Tout")}
+            className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+              activeCategory === "Tout"
+                ? "bg-brand text-white shadow-sm"
+                : "bg-gray-100 text-muted hover:bg-gray-200"
+            }`}
+          >
+            Tout
+          </button>
+          {categories.map((cat) => (
             <button
               key={cat}
-              onClick={() => setActiveCategory(cat as typeof activeCategory)}
-              className={`rounded-full px-3 py-1.5 text-sm font-medium ${
+              onClick={() => setActiveCategory(cat)}
+              className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
                 activeCategory === cat
-                  ? "bg-brand text-white"
+                  ? "bg-brand text-white shadow-sm"
                   : "bg-gray-100 text-muted hover:bg-gray-200"
               }`}
             >
@@ -329,22 +397,43 @@ export function CaisseClient({
         )}
 
         <div className="grid flex-1 grid-cols-2 gap-3 overflow-y-auto scrollbar-thin sm:grid-cols-3 xl:grid-cols-4">
-          {filteredProducts.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => addProduct(p)}
-              disabled={p.stock <= 0 || p.temporarilyUnavailable}
-              className="flex flex-col items-start gap-1 rounded-xl border border-border bg-white p-3 text-left transition hover:border-brand hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <span className="text-sm font-medium leading-tight">{p.name}</span>
-              <span className="text-sm font-semibold text-brand-dark">
-                {formatPrice(p.price)}
-              </span>
-              <span className="text-xs text-muted">
-                {p.temporarilyUnavailable ? "Indisponible" : `Stock: ${p.stock}`}
-              </span>
-            </button>
-          ))}
+          {filteredProducts.map((p) => {
+            const lowStock = p.stock > 0 && p.stock <= 5;
+            return (
+              <button
+                key={p.id}
+                onClick={() => addProduct(p)}
+                disabled={p.stock <= 0 || p.temporarilyUnavailable}
+                className="group flex flex-col items-start gap-2 rounded-xl border border-border bg-white p-3 text-left transition-all hover:-translate-y-0.5 hover:border-brand hover:shadow-md active:translate-y-0 active:shadow-sm disabled:pointer-events-none disabled:opacity-40"
+              >
+                <div className="flex h-16 w-full items-center justify-center overflow-hidden rounded-lg bg-brand-light text-lg font-semibold text-brand-dark">
+                  {p.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.imageUrl} alt={p.name} className="h-full w-full object-cover" />
+                  ) : (
+                    p.name.slice(0, 1).toUpperCase()
+                  )}
+                </div>
+                <span className="text-sm font-medium leading-tight">{p.name}</span>
+                <div className="flex w-full items-center justify-between">
+                  <span className="text-sm font-semibold text-brand-dark">
+                    {formatPrice(p.price)}
+                  </span>
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[11px] font-medium ${
+                      p.temporarilyUnavailable
+                        ? "bg-gray-100 text-muted"
+                        : lowStock
+                          ? "bg-amber-100 text-amber-800"
+                          : "text-muted"
+                    }`}
+                  >
+                    {p.temporarilyUnavailable ? "Indispo." : `Stock: ${p.stock}`}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
           {filteredProducts.length === 0 && (
             <p className="col-span-full py-10 text-center text-sm text-muted">
               Aucun article.
@@ -354,7 +443,7 @@ export function CaisseClient({
       </div>
 
       {/* Ticket */}
-      <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface">
+      <div className="flex flex-col overflow-hidden rounded-2xl border border-border bg-surface">
         <div className="border-b border-border p-4">
           <p className="text-xs uppercase tracking-wide text-muted">
             Vendeur · {registerLabel}
@@ -371,68 +460,74 @@ export function CaisseClient({
         </div>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-gray-50 text-xs uppercase text-muted">
-              <tr>
-                <th className="px-3 py-2 text-left">Produit</th>
-                <th className="px-3 py-2 text-center">Qté</th>
-                <th className="px-3 py-2 text-right">Remise</th>
-                <th className="px-3 py-2 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
+          {lines.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center gap-1 py-10 text-center text-muted">
+              <span className="text-2xl">🛒</span>
+              <p className="text-sm">Ticket vide — sélectionnez un article</p>
+            </div>
+          ) : (
+            <ul className="flex flex-col divide-y divide-border">
               {lines.map((line, i) => {
                 const gross = line.unitPrice * line.qty;
                 const lineTotal = gross - gross * (line.discountPercent / 100);
                 return (
-                  <tr
+                  <li
                     key={line.productId}
                     onClick={() => setSelectedIndex(i)}
-                    className={`cursor-pointer border-b border-border ${
+                    className={`flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors ${
                       selectedIndex === i ? "bg-brand-light" : "hover:bg-gray-50"
                     }`}
                   >
-                    <td className="px-3 py-2">{line.name}</td>
-                    <td className="px-3 py-2 text-center">{line.qty}</td>
-                    <td className="px-3 py-2 text-right">
-                      {line.discountPercent > 0 ? `${line.discountPercent}%` : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right font-medium">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{line.name}</p>
+                      {line.discountPercent > 0 && (
+                        <p className="text-xs text-brand-dark">-{line.discountPercent}% remise</p>
+                      )}
+                    </div>
+                    <div
+                      className="flex items-center gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        onClick={() => updateQtyAt(i, -1)}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-white text-sm hover:bg-gray-100"
+                      >
+                        −
+                      </button>
+                      <span className="w-5 text-center text-sm font-medium">{line.qty}</span>
+                      <button
+                        onClick={() => updateQtyAt(i, 1)}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-white text-sm hover:bg-gray-100"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="w-20 shrink-0 text-right text-sm font-semibold">
                       {formatPrice(lineTotal)}
-                    </td>
-                  </tr>
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeLineAt(i);
+                      }}
+                      className="shrink-0 text-muted hover:text-danger"
+                      aria-label="Supprimer la ligne"
+                    >
+                      ✕
+                    </button>
+                  </li>
                 );
               })}
-              {lines.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="py-10 text-center text-muted">
-                    Ticket vide — sélectionnez un article
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+            </ul>
+          )}
         </div>
 
         {selectedLine && (
           <div className="border-t border-border bg-gray-50 p-3">
-            <p className="mb-2 text-xs font-medium text-muted">
-              Ligne sélectionnée : {selectedLine.name}
-            </p>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => updateSelectedQty(-1)}
-                className="h-8 w-8 rounded-lg border border-border bg-white hover:bg-gray-100"
-              >
-                −
-              </button>
-              <span className="w-6 text-center text-sm">{selectedLine.qty}</span>
-              <button
-                onClick={() => updateSelectedQty(1)}
-                className="h-8 w-8 rounded-lg border border-border bg-white hover:bg-gray-100"
-              >
-                +
-              </button>
+              <p className="flex-1 truncate text-xs font-medium text-muted">
+                Remise sur : {selectedLine.name}
+              </p>
               <input
                 type="number"
                 min={0}
@@ -442,12 +537,31 @@ export function CaisseClient({
                 className="w-16 rounded-lg border border-border px-2 py-1.5 text-sm"
               />
               <span className="text-xs text-muted">% remise</span>
-              <button
-                onClick={removeSelectedLine}
-                className="ml-auto text-xs font-medium text-danger hover:underline"
-              >
-                Suppr. (Del)
-              </button>
+            </div>
+          </div>
+        )}
+
+        {customer && availableRewards.length > 0 && (
+          <div className="border-t border-border p-3">
+            <p className="mb-2 text-xs font-medium text-muted">Récompenses disponibles</p>
+            <div className="flex flex-wrap gap-2">
+              {availableRewards.map((r) => {
+                const active = selectedRewardId === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => setSelectedRewardId(active ? null : r.id)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      active
+                        ? "border-brand bg-brand text-white"
+                        : "border-brand/40 bg-brand-light text-brand-dark hover:bg-brand/10"
+                    }`}
+                  >
+                    {r.type === "PERCENT" ? `-${r.value}%` : `-${formatPrice(r.value)}`} · {r.rewardName}
+                    {active && " ✓"}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -478,54 +592,64 @@ export function CaisseClient({
             </p>
           )}
 
-          <div className="mt-3 flex items-center justify-between text-sm text-muted">
-            <span>Sous-total</span>
-            <span>{formatPrice(pricing.subtotal)}</span>
-          </div>
-          {pricing.promoDiscount > 0 && (
-            <div className="flex items-center justify-between text-sm text-muted">
-              <span>Remise code promo</span>
-              <span>-{formatPrice(pricing.promoDiscount)}</span>
+          <div className="mt-3 flex flex-col gap-1 text-sm text-muted">
+            <div className="flex items-center justify-between">
+              <span>Sous-total</span>
+              <span>{formatPrice(pricing.subtotal)}</span>
             </div>
-          )}
-          {pricing.customerDiscount > 0 && (
-            <div className="flex items-center justify-between text-sm text-muted">
-              <span>Remise fidélité client</span>
-              <span>-{formatPrice(pricing.customerDiscount)}</span>
+            {pricing.promoDiscount > 0 && (
+              <div className="flex items-center justify-between">
+                <span>Remise code promo</span>
+                <span>-{formatPrice(pricing.promoDiscount)}</span>
+              </div>
+            )}
+            {pricing.customerDiscount > 0 && (
+              <div className="flex items-center justify-between">
+                <span>Remise fidélité client</span>
+                <span>-{formatPrice(pricing.customerDiscount)}</span>
+              </div>
+            )}
+            {pricing.rewardDiscount > 0 && (
+              <div className="flex items-center justify-between text-brand-dark">
+                <span>Récompense appliquée</span>
+                <span>-{formatPrice(pricing.rewardDiscount)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                Remise totale (manuelle)
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={globalDiscount}
+                  onChange={(e) => setGlobalDiscount(Number(e.target.value))}
+                  className="w-14 rounded-lg border border-border px-1.5 py-1 text-xs"
+                />
+                %
+              </span>
+              <span>-{formatPrice(pricing.globalDiscount)}</span>
             </div>
-          )}
-          <div className="mt-1 flex items-center justify-between text-sm">
-            <span className="flex items-center gap-2 text-muted">
-              Remise totale (manuelle)
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={globalDiscount}
-                onChange={(e) => setGlobalDiscount(Number(e.target.value))}
-                className="w-14 rounded-lg border border-border px-1.5 py-1 text-xs"
-              />
-              %
-            </span>
-            <span>-{formatPrice(pricing.globalDiscount)}</span>
-          </div>
-          <div className="mt-2 flex items-center justify-between text-xl font-semibold">
-            <span>Total</span>
-            <span>{formatPrice(pricing.total)}</span>
           </div>
 
-          <div className="mt-3 flex gap-2">
-            {(["CARD", "CASH", "MIXED"] as PaymentMethod[]).map((method) => (
+          <div className="mt-3 flex items-center justify-between rounded-xl bg-brand-light px-4 py-3">
+            <span className="text-sm font-medium text-brand-dark">Total</span>
+            <span className="text-2xl font-bold text-brand-dark">{formatPrice(pricing.total)}</span>
+          </div>
+
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {PAYMENT_OPTIONS.map(({ method, label, icon }) => (
               <button
                 key={method}
                 onClick={() => setPaymentMethod(method)}
-                className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium ${
+                className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-xs font-medium transition-colors ${
                   paymentMethod === method
-                    ? "border-brand bg-brand-light text-brand-dark"
+                    ? "border-brand bg-brand-light text-brand-dark ring-1 ring-brand"
                     : "border-border bg-white text-muted hover:bg-gray-50"
                 }`}
               >
-                {method === "CARD" ? "Carte" : method === "CASH" ? "Espèces" : "Mixte"}
+                <span className="text-base leading-none">{icon}</span>
+                {label}
               </button>
             ))}
           </div>

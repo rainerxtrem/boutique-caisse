@@ -37,6 +37,8 @@ export default async function RewardDetailPage({
             pointsCost: reward.pointsCost,
             imageUrl: reward.imageUrl ?? "",
             active: reward.active,
+            type: reward.type,
+            value: reward.value != null ? Number(reward.value) : null,
           }}
         />
       </Card>

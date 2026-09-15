@@ -3,13 +3,18 @@ import { prisma } from "@/lib/db";
 import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/empty-state";
 import { formatDate } from "@/lib/format";
-import { requireAnyPermission } from "@/lib/permissions";
+import { getSessionWithPermissions } from "@/lib/permissions";
+import { redirect } from "next/navigation";
 import { RewardForm } from "./reward-form";
 import { FulfillLookup } from "./fulfill-lookup";
 import { createReward } from "./actions";
 
 export default async function RecompensesPage() {
-  await requireAnyPermission(["recompenses.manage", "recompenses.fulfill"]);
+  const session = await getSessionWithPermissions();
+  const canManage = session.permissions.has("recompenses.manage");
+  const canFulfill = session.permissions.has("recompenses.fulfill");
+  if (!canManage && !canFulfill) redirect("/admin");
+
   const [rewards, pendingRedemptions] = await Promise.all([
     prisma.reward.findMany({ orderBy: { pointsCost: "asc" } }),
     prisma.rewardRedemption.findMany({
@@ -44,14 +49,25 @@ export default async function RecompensesPage() {
                 {rewards.map((r) => (
                   <Card key={r.id} className="flex items-center justify-between p-4">
                     <div>
-                      <Link href={`/admin/recompenses/${r.id}`} className="font-medium hover:text-brand">
-                        {r.name}
-                      </Link>
-                      <p className="text-sm text-muted">{r.pointsCost} pts</p>
+                      {canManage ? (
+                        <Link href={`/admin/recompenses/${r.id}`} className="font-medium hover:text-brand">
+                          {r.name}
+                        </Link>
+                      ) : (
+                        <span className="font-medium">{r.name}</span>
+                      )}
+                      <p className="text-sm text-muted">
+                        {r.pointsCost} pts
+                        {r.type === "PERCENT" && ` · -${Number(r.value)}%`}
+                        {r.type === "FIXED" && ` · -${Number(r.value)}€`}
+                      </p>
                     </div>
-                    <Badge tone={r.active ? "brand" : "muted"}>
-                      {r.active ? "Disponible" : "Indisponible"}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      {r.type !== "PHYSICAL" && <Badge tone="muted">Remise caisse</Badge>}
+                      <Badge tone={r.active ? "brand" : "muted"}>
+                        {r.active ? "Disponible" : "Indisponible"}
+                      </Badge>
+                    </div>
                   </Card>
                 ))}
               </div>
@@ -92,11 +108,13 @@ export default async function RecompensesPage() {
         </div>
 
         <div className="flex flex-col gap-6">
-          <FulfillLookup />
-          <Card className="p-6">
-            <h2 className="mb-3 font-semibold">Nouvelle récompense</h2>
-            <RewardForm action={createReward} submitLabel="Créer la récompense" />
-          </Card>
+          {canFulfill && <FulfillLookup />}
+          {canManage && (
+            <Card className="p-6">
+              <h2 className="mb-3 font-semibold">Nouvelle récompense</h2>
+              <RewardForm action={createReward} submitLabel="Créer la récompense" />
+            </Card>
+          )}
         </div>
       </div>
     </div>

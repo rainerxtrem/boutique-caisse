@@ -7,6 +7,8 @@ import { computeOrderPricing, getEffectivePrice } from "@/lib/pricing";
 import { resolvePromoCode } from "@/lib/promo";
 import { isBirthdayPeriod, BIRTHDAY_DISCOUNT_PERCENT } from "@/lib/loyalty";
 import { applyReferralBonusIfFirstOrder, generateUniqueReferralCode } from "@/lib/referral";
+import { logAudit } from "@/lib/audit";
+import { formatPrice } from "@/lib/format";
 
 export async function findCustomerByPhone(phone: string) {
   await requirePermission("caisse.use");
@@ -106,6 +108,35 @@ export async function previewPromoCode(code: string, subtotal: number) {
   return { ok: true as const, promo: resolution.promo };
 }
 
+export type CustomerRewardRedemption = {
+  id: string;
+  rewardName: string;
+  type: "PERCENT" | "FIXED";
+  value: number;
+};
+
+export async function getCustomerRewardRedemptions(
+  customerId: string
+): Promise<CustomerRewardRedemption[]> {
+  await requirePermission("caisse.use");
+  const redemptions = await prisma.rewardRedemption.findMany({
+    where: {
+      customerId,
+      status: "PENDING",
+      reward: { active: true, type: { in: ["PERCENT", "FIXED"] } },
+    },
+    include: { reward: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return redemptions.map((r) => ({
+    id: r.id,
+    rewardName: r.reward.name,
+    type: r.reward.type as "PERCENT" | "FIXED",
+    value: Number(r.reward.value),
+  }));
+}
+
 export type SaleLine = {
   productId: string;
   qty: number;
@@ -129,7 +160,8 @@ export async function completeSale(
   globalDiscountPercent: number,
   promoCodeInput: string | null,
   payment: { method: PaymentMethod; amountPaid: number | null },
-  registerLabel: string | null
+  registerLabel: string | null,
+  rewardRedemptionId: string | null = null
 ): Promise<CompleteSaleResult> {
   const session = await requirePermission("caisse.use");
 
@@ -175,6 +207,29 @@ export async function completeSale(
       promo = resolution.promo;
     }
 
+    let rewardDiscountInput: { type: "PERCENT" | "FIXED"; value: number } | null = null;
+    let rewardRedemptionName: string | null = null;
+    if (rewardRedemptionId) {
+      if (!customerId) throw new Error("Sélectionnez un client pour appliquer une récompense.");
+      const found = await prisma.rewardRedemption.findUnique({
+        where: { id: rewardRedemptionId },
+        include: { reward: true },
+      });
+      if (!found) throw new Error("Récompense introuvable.");
+      if (found.status !== "PENDING") throw new Error("Cette récompense a déjà été utilisée.");
+      if (found.customerId !== customerId) {
+        throw new Error("Cette récompense n'appartient pas au client sélectionné.");
+      }
+      if (!found.reward.active || found.reward.type === "PHYSICAL") {
+        throw new Error("Cette récompense n'est plus applicable en caisse.");
+      }
+      rewardDiscountInput = {
+        type: found.reward.type as "PERCENT" | "FIXED",
+        value: Number(found.reward.value),
+      };
+      rewardRedemptionName = found.reward.name;
+    }
+
     const customerDiscountPercent =
       (customer ? Number(customer.permanentDiscountPercent) : 0) +
       (customer && isBirthdayPeriod(customer.birthDate) ? BIRTHDAY_DISCOUNT_PERCENT : 0);
@@ -188,6 +243,7 @@ export async function completeSale(
       {
         promoCode: promo,
         customerDiscountPercent,
+        rewardDiscount: rewardDiscountInput,
         globalDiscountPercent,
       }
     );
@@ -199,7 +255,7 @@ export async function completeSale(
 
     const number = await withOrderNumber("CAI", async (number) => {
       await prisma.$transaction(async (tx) => {
-        await tx.order.create({
+        const order = await tx.order.create({
           data: {
             number,
             source: "CAISSE",
@@ -209,6 +265,7 @@ export async function completeSale(
             total: pricing.total,
             promoCodeId: promo?.id,
             promoDiscount: pricing.promoDiscount,
+            rewardDiscount: pricing.rewardDiscount,
             paymentMethod: payment.method,
             amountPaid: payment.amountPaid ?? pricing.total,
             changeGiven,
@@ -233,6 +290,26 @@ export async function completeSale(
           await tx.product.update({
             where: { id: l.product.id },
             data: { stock: { decrement: l.qty } },
+          });
+        }
+
+        if (rewardRedemptionId) {
+          await tx.rewardRedemption.update({
+            where: { id: rewardRedemptionId },
+            data: {
+              status: "FULFILLED",
+              fulfilledAt: new Date(),
+              fulfilledById: session.userId,
+              orderId: order.id,
+            },
+          });
+          await logAudit(tx, {
+            actorId: session.userId,
+            actorName: session.name,
+            action: "reward.applied_caisse",
+            entityType: "RewardRedemption",
+            entityId: rewardRedemptionId,
+            summary: `Récompense "${rewardRedemptionName}" appliquée à la commande ${number} (-${formatPrice(pricing.rewardDiscount)})`,
           });
         }
 

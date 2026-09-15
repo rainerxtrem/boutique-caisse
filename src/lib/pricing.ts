@@ -12,6 +12,8 @@ export type PricingOptions = {
   promoCode?: { type: "PERCENT" | "FIXED"; value: number } | null;
   /** Combined customer-based discount (permanent discount + active birthday offer, already summed). */
   customerDiscountPercent?: number;
+  /** Loyalty reward redeemed by the customer and applied at checkout (caisse only, for now). */
+  rewardDiscount?: { type: "PERCENT" | "FIXED"; value: number } | null;
   /** Manual discount applied by staff at the register. */
   globalDiscountPercent?: number;
 };
@@ -20,6 +22,7 @@ export type PricingResult = {
   subtotal: number;
   promoDiscount: number;
   customerDiscount: number;
+  rewardDiscount: number;
   globalDiscount: number;
   discountTotal: number;
   total: number;
@@ -70,6 +73,15 @@ export function computeOrderPricing(
   const customerDiscount = round2(running * ((options.customerDiscountPercent ?? 0) / 100));
   running = round2(Math.max(0, running - customerDiscount));
 
+  const rewardDiscount = round2(
+    !options.rewardDiscount
+      ? 0
+      : options.rewardDiscount.type === "PERCENT"
+        ? running * (options.rewardDiscount.value / 100)
+        : Math.min(options.rewardDiscount.value, running)
+  );
+  running = round2(Math.max(0, running - rewardDiscount));
+
   const globalDiscount = round2(running * ((options.globalDiscountPercent ?? 0) / 100));
   running = round2(Math.max(0, running - globalDiscount));
 
@@ -77,8 +89,9 @@ export function computeOrderPricing(
     subtotal,
     promoDiscount,
     customerDiscount,
+    rewardDiscount,
     globalDiscount,
-    discountTotal: round2(promoDiscount + customerDiscount + globalDiscount),
+    discountTotal: round2(promoDiscount + customerDiscount + rewardDiscount + globalDiscount),
     total: Math.max(0, running),
   };
 }

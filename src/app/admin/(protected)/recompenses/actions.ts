@@ -7,13 +7,25 @@ import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 
-const rewardSchema = z.object({
-  name: z.string().min(1, "Nom requis"),
-  description: z.string().optional(),
-  pointsCost: z.coerce.number().int().min(1, "Coût invalide"),
-  imageUrl: z.string().optional(),
-  active: z.coerce.boolean().optional(),
-});
+const rewardSchema = z
+  .object({
+    name: z.string().min(1, "Nom requis"),
+    description: z.string().optional(),
+    pointsCost: z.coerce.number().int().min(1, "Coût invalide"),
+    imageUrl: z.string().optional(),
+    active: z.coerce.boolean().optional(),
+    type: z.enum(["PHYSICAL", "PERCENT", "FIXED"]),
+    value: z.coerce.number().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.type === "PHYSICAL") return true;
+      if (data.value == null || data.value <= 0) return false;
+      if (data.type === "PERCENT" && data.value > 100) return false;
+      return true;
+    },
+    { message: "Valeur de réduction invalide.", path: ["value"] }
+  );
 
 export type RewardFormState = { error?: string };
 
@@ -24,6 +36,8 @@ function readRewardForm(formData: FormData) {
     pointsCost: formData.get("pointsCost"),
     imageUrl: formData.get("imageUrl") || undefined,
     active: formData.get("active") === "on",
+    type: formData.get("type"),
+    value: formData.get("value") || undefined,
   });
 }
 
@@ -44,6 +58,8 @@ export async function createReward(
       pointsCost: parsed.data.pointsCost,
       imageUrl: parsed.data.imageUrl || null,
       active: parsed.data.active ?? true,
+      type: parsed.data.type,
+      value: parsed.data.type === "PHYSICAL" ? null : parsed.data.value,
     },
   });
 
@@ -71,6 +87,8 @@ export async function updateReward(
       pointsCost: parsed.data.pointsCost,
       imageUrl: parsed.data.imageUrl || null,
       active: parsed.data.active ?? true,
+      type: parsed.data.type,
+      value: parsed.data.type === "PHYSICAL" ? null : parsed.data.value,
     },
   });
 
@@ -107,6 +125,11 @@ export async function fulfillRedemption(code: string) {
   if (!redemption) throw new Error("Code introuvable.");
   if (redemption.status === "FULFILLED") {
     throw new Error("Cette récompense a déjà été remise.");
+  }
+  if (redemption.reward.type !== "PHYSICAL") {
+    throw new Error(
+      "Cette récompense doit être appliquée directement en caisse lors du paiement, pas remise via un code."
+    );
   }
 
   await prisma.rewardRedemption.update({
